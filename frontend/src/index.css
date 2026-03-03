@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Cream / Ivory palette */
+    --background: 38 40% 97%;
+    --foreground: 20 25% 12%;
+
+    --card: 36 35% 95%;
+    --card-foreground: 20 25% 12%;
+
+    --popover: 38 40% 97%;
+    --popover-foreground: 20 25% 12%;
+
+    /* Terracotta */
+    --primary: 15 55% 48%;
+    --primary-foreground: 38 40% 97%;
+
+    /* Warm cream secondary */
+    --secondary: 36 30% 90%;
+    --secondary-foreground: 20 25% 18%;
+
+    --muted: 36 20% 92%;
+    --muted-foreground: 20 12% 50%;
+
+    /* Saffron accent */
+    --accent: 40 88% 55%;
+    --accent-foreground: 20 30% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 15 55% 48%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --herb: 145 38% 38%;
+    --herb-foreground: 145 20% 96%;
+    --saffron: 40 88% 55%;
+    --saffron-foreground: 40 60% 12%;
+    --terracotta: 15 55% 48%;
+    --terracotta-light: 15 50% 92%;
+    --warm-bg: 38 40% 97%;
+    --warm-surface: 36 35% 95%;
+
+    --sidebar-background: 36 30% 94%;
+    --sidebar-foreground: 20 25% 18%;
+    --sidebar-primary: 15 55% 48%;
+    --sidebar-primary-foreground: 38 40% 97%;
+    --sidebar-accent: 36 30% 90%;
+    --sidebar-accent-foreground: 20 25% 18%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 15 55% 48%;
+  }
+
+  .dark {
+    --background: 20 20% 8%;
+    --foreground: 36 25% 92%;
+
+    --card: 20 18% 12%;
+    --card-foreground: 36 25% 92%;
+
+    --popover: 20 18% 12%;
+    --popover-foreground: 36 25% 92%;
+
+    --primary: 15 55% 55%;
+    --primary-foreground: 20 20% 8%;
+
+    --secondary: 20 15% 18%;
+    --secondary-foreground: 36 25% 88%;
+
+    --muted: 20 12% 16%;
+    --muted-foreground: 20 10% 55%;
+
+    --accent: 40 80% 50%;
+    --accent-foreground: 20 25% 8%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 20 12% 20%;
+    --input: 20 12% 20%;
+    --ring: 15 55% 55%;
+
+    --herb: 145 35% 45%;
+    --herb-foreground: 145 20% 10%;
+    --saffron: 40 80% 50%;
+    --saffron-foreground: 40 60% 90%;
+    --terracotta: 15 55% 55%;
+    --terracotta-light: 15 30% 18%;
+    --warm-bg: 20 20% 8%;
+    --warm-surface: 20 18% 12%;
+
+    --sidebar-background: 20 15% 10%;
+    --sidebar-foreground: 36 25% 88%;
+    --sidebar-primary: 15 55% 55%;
+    --sidebar-primary-foreground: 20 20% 8%;
+    --sidebar-accent: 20 15% 18%;
+    --sidebar-accent-foreground: 36 25% 88%;
+    --sidebar-border: 20 12% 20%;
+    --sidebar-ring: 15 55% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'DM Sans', sans-serif;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'DM Serif Display', serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'DM Serif Display', serif;
+  }
+  .font-body {
+    font-family: 'DM Sans', sans-serif;
+  }
+  .gradient-warm {
+    background: linear-gradient(135deg, hsl(var(--terracotta)) 0%, hsl(var(--saffron)) 100%);
+  }
+  .gradient-herb {
+    background: linear-gradient(135deg, hsl(var(--herb)) 0%, hsl(145 35% 50%) 100%);
+  }
+  .shadow-warm {
+    box-shadow: 0 4px 20px -4px hsl(var(--terracotta) / 0.15);
+  }
+  .shadow-card {
+    box-shadow: 0 2px 12px -2px hsl(var(--foreground) / 0.06);
+  }
+}

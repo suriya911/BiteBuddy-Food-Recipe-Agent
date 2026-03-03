@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: bitebuddy-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/data:/app/data
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bitebuddy-postgres
+    environment:
+      POSTGRES_DB: bitebuddy
+      POSTGRES_USER: bitebuddy
+      POSTGRES_PASSWORD: bitebuddy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    profiles:
+      - local-db
+
+  chroma:
+    image: chromadb/chroma:0.5.5
+    container_name: bitebuddy-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    profiles:
+      - local-db
+
+volumes:
+  postgres_data:
+  chroma_data:

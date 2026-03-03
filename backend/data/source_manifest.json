@@ -1,0 +1,33 @@
+{
+  "selected_at": "2026-03-03",
+  "datasets": [
+    {
+      "slug": "kishanpahadiya/indian-food-and-its-recipes-dataset-with-images",
+      "label": "Indian Food and Its Recipes Dataset (With Images)",
+      "region_focus": "Indian",
+      "priority": 1,
+      "reason": "Strong India-specific coverage with recipe-level records and image metadata."
+    },
+    {
+      "slug": "asiyatasleem/indian-recipes",
+      "label": "indian__recipes",
+      "region_focus": "Indian",
+      "priority": 2,
+      "reason": "Secondary Indian cuisine source to broaden regional dish coverage."
+    },
+    {
+      "slug": "paultimothymooney/recipenlg",
+      "label": "RecipeNLG (cooking recipes dataset)",
+      "region_focus": "International",
+      "priority": 3,
+      "reason": "Large multi-cuisine corpus with ingredients and directions suitable for RAG."
+    },
+    {
+      "slug": "shuyangli94/food-com-recipes-and-user-interactions",
+      "label": "Food.com Recipes and Interactions",
+      "region_focus": "International",
+      "priority": 4,
+      "reason": "Adds broad recipe coverage plus ratings and interaction signals for ranking later."
+    }
+  ]
+}

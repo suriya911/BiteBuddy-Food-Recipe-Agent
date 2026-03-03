@@ -1,0 +1,52 @@
+service: bitebuddy-api
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+  stage: dev
+  memorySize: 1024
+  timeout: 30
+  httpApi:
+    cors:
+      allowedOrigins:
+        - http://localhost:5173
+        - https://your-vercel-domain.vercel.app
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+  environment:
+    APP_ENV: ${env:APP_ENV, 'production'}
+    APP_NAME: BiteBuddy API
+    API_V1_PREFIX: /api
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY, ''}
+    SUPABASE_URL: ${env:SUPABASE_URL, ''}
+    SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY, ''}
+    PINECONE_API_KEY: ${env:PINECONE_API_KEY, ''}
+    PINECONE_INDEX: ${env:PINECONE_INDEX, ''}
+    YOUTUBE_API_KEY: ${env:YOUTUBE_API_KEY, ''}
+
+functions:
+  api:
+    handler: handler.handler
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+
+package:
+  patterns:
+    - app/**
+    - handler.py
+    - requirements.txt
+    - data/processed/sample_recipes.jsonl
+    - "!data/raw/**"
+    - "!__pycache__/**"
