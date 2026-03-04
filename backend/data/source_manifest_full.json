@@ -14,6 +14,13 @@
       "region_focus": "Indian",
       "priority": 2,
       "reason": "Adds explicit diet labels and Indian regional cuisine coverage."
+    },
+    {
+      "slug": "paultimothymooney/recipenlg",
+      "label": "RecipeNLG",
+      "region_focus": "International",
+      "priority": 3,
+      "reason": "Large-scale long-tail recipe corpus to push retrieval coverage well past one million recipes."
     }
   ]
 }

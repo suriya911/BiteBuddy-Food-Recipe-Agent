@@ -12,9 +12,9 @@ import pandas as pd
 from app.schemas import RecipeDocument, RecipeRecord
 
 
-TITLE_KEYS = ("title", "name", "recipe_name", "recipe", "translatedrecipeName")
-DESCRIPTION_KEYS = ("description", "summary", "desc")
-CUISINE_KEYS = ("cuisine", "region", "course", "category")
+TITLE_KEYS = ("title", "name", "recipe_name", "recipe", "translatedrecipeName", "name_of_dish", "dish name")
+DESCRIPTION_KEYS = ("description", "summary", "desc", "discrption_of_dish")
+CUISINE_KEYS = ("cuisine", "region", "course", "category", "cuisine_name")
 INGREDIENT_KEYS = (
     "ingredients",
     "ingredient",
@@ -23,6 +23,7 @@ INGREDIENT_KEYS = (
     "recipeingredientparts",
     "ner",
     "translatedingredients",
+    "ingredients_of_dish",
 )
 INSTRUCTION_KEYS = (
     "instructions",
@@ -31,16 +32,18 @@ INSTRUCTION_KEYS = (
     "method",
     "recipeinstructions",
     "translatedinstructions",
+    "recipe_instructions",
 )
-ID_KEYS = ("recipe_id", "id", "recipeid", "uid")
-PREP_TIME_KEYS = ("prep_time", "prepminutes", "preptime", "prep")
+ID_KEYS = ("recipe_id", "id", "recipeid", "uid", "unnamed: 0")
+PREP_TIME_KEYS = ("prep_time", "prepminutes", "preptime", "prep", "prepration_time")
 COOK_TIME_KEYS = ("cook_time", "cookminutes", "cooktime", "cook")
-TOTAL_TIME_KEYS = ("total_time", "minutes", "totalminutes", "totaltime")
-SERVINGS_KEYS = ("servings", "yield", "recipeyield")
+TOTAL_TIME_KEYS = ("total_time", "minutes", "totalminutes", "totaltime", "total_time")
+SERVINGS_KEYS = ("servings", "yield", "recipeyield", "makes")
 IMAGE_KEYS = ("image", "image_url", "photo_url")
-URL_KEYS = ("url", "source_url", "recipe_url")
-TAGS_KEYS = ("tags", "keywords", "category", "categories")
-RATING_KEYS = ("rating", "aggregated_rating", "avg_rating")
+URL_KEYS = ("url", "source_url", "recipe_url", "link")
+TAGS_KEYS = ("tags", "keywords", "category", "categories", "course_name", "similar_dishes")
+RATING_KEYS = ("rating", "aggregated_rating", "avg_rating", "ratings_of_dish")
+DIET_KEYS = ("diet", "diet_type")
 
 KNOWN_CUISINES = {
     "indian",
@@ -143,12 +146,14 @@ def normalize_records(
         ingredients = normalize_list(first_non_empty(row, INGREDIENT_KEYS))
         instructions = normalize_instructions(first_non_empty(row, INSTRUCTION_KEYS))
         tags = normalize_list(first_non_empty(row, TAGS_KEYS))
-        cuisine = normalize_text(first_non_empty(row, CUISINE_KEYS))
+        raw_cuisine = normalize_text(first_non_empty(row, CUISINE_KEYS))
         cuisines = infer_cuisines(
             title=str(title),
-            raw_cuisine=cuisine,
+            raw_cuisine=raw_cuisine,
             tags=tags,
         )
+        cuisine = cuisines[0] if cuisines else normalize_label(raw_cuisine)
+        diet_hint = normalize_label(normalize_text(first_non_empty(row, DIET_KEYS)))
         total_time = normalize_minutes(first_non_empty(row, TOTAL_TIME_KEYS))
         prep_time = normalize_minutes(first_non_empty(row, PREP_TIME_KEYS))
         cook_time = normalize_minutes(first_non_empty(row, COOK_TIME_KEYS))
@@ -161,7 +166,7 @@ def normalize_records(
             description=normalize_text(first_non_empty(row, DESCRIPTION_KEYS)),
             cuisine=cuisine or (cuisines[0] if cuisines else None),
             cuisines=cuisines,
-            diet=infer_diet(title=str(title), ingredients=ingredients, tags=tags),
+            diet=infer_diet(title=str(title), ingredients=ingredients, tags=tags, diet_hint=diet_hint),
             total_time_minutes=total_time,
             prep_time_minutes=prep_time,
             cook_time_minutes=cook_time,
@@ -329,8 +334,30 @@ def normalize_rating(value: Any) -> float | None:
         return None
 
 
-def infer_diet(*, title: str, ingredients: list[str], tags: list[str]) -> str | None:
-    haystack = " ".join([title, *ingredients, *tags]).lower()
+def normalize_label(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = value.replace("\ufeff", " ")
+    cleaned = re.sub(r"[\[\]'\"]", " ", cleaned)
+    cleaned = re.sub(r"\b(?:diet|cuisine|course)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,|-")
+    return cleaned or None
+
+
+def infer_diet(*, title: str, ingredients: list[str], tags: list[str], diet_hint: str | None = None) -> str | None:
+    if diet_hint:
+        lowered_hint = diet_hint.lower()
+        if "vegan" in lowered_hint:
+            return "vegan"
+        if "eggetarian" in lowered_hint or "egg" in lowered_hint:
+            return "eggetarian"
+        if "pescatarian" in lowered_hint or "fish" in lowered_hint or "seafood" in lowered_hint:
+            return "pescatarian"
+        if "non vegetarian" in lowered_hint or "non-vegetarian" in lowered_hint or "non vegeterian" in lowered_hint:
+            return "non_vegetarian"
+        if "vegetarian" in lowered_hint or "sattvic" in lowered_hint:
+            return "vegetarian"
+    haystack = " ".join([title, *(ingredients or []), *(tags or []), diet_hint or ""]).lower()
     if any(term in haystack for term in NON_VEGETARIAN_TERMS):
         if any(term in haystack for term in PESCATARIAN_TERMS):
             return "pescatarian"
@@ -349,7 +376,7 @@ def infer_diet(*, title: str, ingredients: list[str], tags: list[str]) -> str | 
 def infer_cuisines(*, title: str, raw_cuisine: str | None, tags: list[str]) -> list[str]:
     candidates: list[str] = []
     if raw_cuisine:
-        candidates.extend(normalize_list(raw_cuisine))
+        candidates.extend([normalize_label(item) or item for item in normalize_list(raw_cuisine)])
     candidates.extend(tags)
     candidates.append(title)
 
@@ -357,7 +384,11 @@ def infer_cuisines(*, title: str, raw_cuisine: str | None, tags: list[str]) -> l
     matches = [cuisine.title() for cuisine in sorted(KNOWN_CUISINES) if cuisine in haystack]
 
     if raw_cuisine:
-        normalized_raw = [item.title() for item in normalize_list(raw_cuisine)]
+        normalized_raw = [
+            (normalize_label(item) or item).title()
+            for item in normalize_list(raw_cuisine)
+            if normalize_label(item) or item
+        ]
         matches = normalized_raw + [item for item in matches if item not in normalized_raw]
 
     deduplicated: list[str] = []
