@@ -1,0 +1,6 @@
+scikit-learn
+rank-bm25
+sentence-transformers
+nbformat
+nbclient
+ipykernel
