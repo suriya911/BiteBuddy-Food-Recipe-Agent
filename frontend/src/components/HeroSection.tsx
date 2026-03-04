@@ -1,41 +1,69 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Send, Sparkles, Clock, Leaf, ChefHat, MessageSquare, Lightbulb, Utensils } from "lucide-react";
+import {
+  Send,
+  Sparkles,
+  Clock,
+  Leaf,
+  ChefHat,
+  MessageSquare,
+  Lightbulb,
+  Utensils,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { suggestionChips, cuisineOptions, dietOptions, cookingTimeOptions } from "@/lib/mock-data";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  suggestionChips,
+  cuisineOptions,
+  dietOptions,
+  cookingTimeOptions,
+} from "@/lib/mock-data";
+import type { UserProfile } from "@/lib/api";
 import heroImage from "@/assets/hero-food.jpg";
 
 interface HeroSectionProps {
-  onSendMessage: () => void;
+  onSendMessage: (message: string, profilePatch: Partial<UserProfile>) => void;
 }
 
 const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
   const [query, setQuery] = useState("");
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
+  const [diet, setDiet] = useState<string>("Any");
+  const [cookTime, setCookTime] = useState<string>("any");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSend = () => {
-    if (query.trim()) onSendMessage();
+    if (!query.trim()) return;
+    onSendMessage(query.trim(), {
+      preferred_cuisines: selectedCuisines,
+      diet: normalizeDiet(diet),
+      max_cooking_time_minutes: normalizeTime(cookTime),
+    });
   };
 
   const toggleCuisine = (cuisine: string) => {
     setSelectedCuisines((prev) =>
-      prev.includes(cuisine) ? prev.filter((c) => c !== cuisine) : [...prev, cuisine]
+      prev.includes(cuisine)
+        ? prev.filter((item) => item !== cuisine)
+        : [...prev, cuisine],
     );
   };
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-start overflow-hidden pt-24 pb-16">
-      {/* Background image */}
       <div className="absolute inset-0">
         <img src={heroImage} alt="Fresh cooking ingredients" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/60 to-background" />
       </div>
 
       <div className="relative z-10 w-full max-w-3xl mx-auto px-4">
-        {/* Hero Content */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -56,7 +84,6 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           </p>
         </motion.div>
 
-        {/* Search Input */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -82,7 +109,6 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           </div>
         </motion.div>
 
-        {/* Suggestion Chips */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -92,7 +118,10 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           {suggestionChips.map((chip) => (
             <button
               key={chip}
-              onClick={() => { setQuery(chip); inputRef.current?.focus(); }}
+              onClick={() => {
+                setQuery(chip);
+                inputRef.current?.focus();
+              }}
               className="px-3 py-1.5 rounded-full text-sm bg-card/80 backdrop-blur-sm border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-card transition-all"
             >
               {chip}
@@ -100,7 +129,6 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           ))}
         </motion.div>
 
-        {/* Quick Filters */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -113,42 +141,42 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           <p className="text-xs text-muted-foreground mb-4">Use natural language, filters, or both.</p>
 
           <div className="space-y-4">
-            {/* Cuisine Chips */}
             <div className="space-y-2">
               <label className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <ChefHat className="w-3.5 h-3.5 text-terracotta" /> Cuisine
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {cuisineOptions.map((c) => (
+                {cuisineOptions.map((cuisine) => (
                   <Badge
-                    key={c}
-                    variant={selectedCuisines.includes(c) ? "default" : "outline"}
+                    key={cuisine}
+                    variant={selectedCuisines.includes(cuisine) ? "default" : "outline"}
                     className={`cursor-pointer transition-colors text-xs ${
-                      selectedCuisines.includes(c)
+                      selectedCuisines.includes(cuisine)
                         ? "gradient-warm text-primary-foreground border-0"
                         : "hover:bg-primary/10 hover:text-primary hover:border-primary/30"
                     }`}
-                    onClick={() => toggleCuisine(c)}
+                    onClick={() => toggleCuisine(cuisine)}
                   >
-                    {c}
+                    {cuisine}
                   </Badge>
                 ))}
               </div>
             </div>
 
-            {/* Diet + Cooking Time row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <Leaf className="w-3.5 h-3.5 text-herb" /> Dietary Preference
                 </label>
-                <Select>
+                <Select value={diet} onValueChange={setDiet}>
                   <SelectTrigger className="bg-background/60 border-border rounded-xl h-9 text-sm">
                     <SelectValue placeholder="Any" />
                   </SelectTrigger>
                   <SelectContent>
-                    {dietOptions.map((d) => (
-                      <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>
+                    {dietOptions.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -157,13 +185,15 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
                 <label className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <Clock className="w-3.5 h-3.5 text-saffron" /> Cooking Time
                 </label>
-                <Select>
+                <Select value={cookTime} onValueChange={setCookTime}>
                   <SelectTrigger className="bg-background/60 border-border rounded-xl h-9 text-sm">
                     <SelectValue placeholder="Any time" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cookingTimeOptions.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    {cookingTimeOptions.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -172,7 +202,6 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
           </div>
         </motion.div>
 
-        {/* How It Works */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -184,8 +213,8 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
               { icon: MessageSquare, title: "Tell BiteBuddy what you want", desc: "Type naturally — ingredients, mood, diet, time." },
               { icon: Lightbulb, title: "We understand your preferences", desc: "AI parses cuisine, allergies, and constraints." },
               { icon: Utensils, title: "Get ranked recipes & swaps", desc: "Smart matches with substitutions and alerts." },
-            ].map((step, i) => (
-              <div key={i} className="bg-card/70 backdrop-blur-sm border border-border rounded-xl p-4 text-center">
+            ].map((step, index) => (
+              <div key={index} className="bg-card/70 backdrop-blur-sm border border-border rounded-xl p-4 text-center">
                 <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center mx-auto mb-3">
                   <step.icon className="w-5 h-5 text-primary" />
                 </div>
@@ -199,5 +228,19 @@ const HeroSection = ({ onSendMessage }: HeroSectionProps) => {
     </div>
   );
 };
+
+function normalizeDiet(value: string): string | null {
+  if (value === "Any") {
+    return null;
+  }
+  return value.toLowerCase().replace("-", "_");
+}
+
+function normalizeTime(value: string): number | null {
+  if (value === "any") {
+    return null;
+  }
+  return Number(value);
+}
 
 export default HeroSection;

@@ -116,9 +116,12 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    line-height: 1.6;
   }
   h1, h2, h3, h4 {
     font-family: 'DM Serif Display', serif;
+    line-height: 1.15;
   }
 }
 
@@ -142,3 +145,4 @@
     box-shadow: 0 2px 12px -2px hsl(var(--foreground) / 0.06);
   }
 }
+
