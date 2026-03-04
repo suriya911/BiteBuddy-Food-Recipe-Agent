@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from app.repositories.recipe_repository import RecipeRepository
 from app.schemas import AgentReply, ChatMessage, ChatRequest, UserProfile
 from app.services.agent_workflow import AgentWorkflowService
 from app.services.query_understanding import build_agent_input
@@ -12,7 +11,7 @@ class ChatService:
     def __init__(
         self,
         *,
-        recipe_repository: RecipeRepository,
+        recipe_repository,
         agent_workflow_service: AgentWorkflowService,
         retrieval_service: RetrievalService,
         session_store: InMemorySessionStore,
@@ -26,7 +25,7 @@ class ChatService:
         session = self.session_store.get_or_create(payload.session_id)
         merged_profile = self._merge_profiles(session.profile, payload.profile)
         merged_history = [*session.history, *payload.history]
-        merged_history.append(ChatMessage(role="user", content=payload.message))
+        merged_history.append(ChatMessage(role='user', content=payload.message))
 
         agent_input = build_agent_input(payload.message, merged_profile)
         persisted_profile = self._apply_detected_preferences(
@@ -49,8 +48,8 @@ class ChatService:
         if agent_input.should_answer_general_food_question:
             return AgentReply(
                 reply=(
-                    "I parsed this as a general food question rather than a recipe search. "
-                    "The next step is to answer it with the LLM and optional retrieved context."
+                    'I parsed this as a general food question rather than a recipe search. '
+                    'The next step is to answer it with the LLM and optional retrieved context.'
                 ),
                 agent_input=agent_input,
                 session_id=session.session_id,
@@ -59,12 +58,12 @@ class ChatService:
                 conflicts=conflicts,
                 substitution_suggestions=substitutions,
                 next_actions=[
-                    "extract_preferences",
-                    "answer_general_food_question",
+                    'extract_preferences',
+                    'answer_general_food_question',
                 ],
             )
 
-        recipes = self.recipe_repository.list_recipes()
+        recipes = None if self.retrieval_service.uses_index() else self.recipe_repository.list_recipes()
         retrieval_result = self.retrieval_service.find_matches(
             recipes=recipes,
             agent_input=agent_input,
@@ -84,11 +83,11 @@ class ChatService:
             conflicts=conflicts,
             substitution_suggestions=substitutions,
             next_actions=[
-                "extract_preferences",
-                "build_retrieval_query",
-                "filter_recipe_metadata",
-                "query_rag_store",
-                "rank_recipe_candidates",
+                'extract_preferences',
+                'build_retrieval_query',
+                'filter_recipe_metadata',
+                'query_rag_store',
+                'rank_recipe_candidates',
             ],
         )
 

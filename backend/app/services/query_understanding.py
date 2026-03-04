@@ -6,118 +6,86 @@ from app.schemas import AgentInput, PreferenceSnapshot, UserProfile
 
 
 STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "be",
-    "for",
-    "from",
-    "i",
-    "in",
-    "is",
-    "it",
-    "me",
-    "of",
-    "on",
-    "or",
-    "please",
-    "the",
-    "to",
-    "with",
-    "want",
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'for', 'from', 'i', 'in', 'is', 'it',
+    'me', 'of', 'on', 'or', 'please', 'the', 'to', 'with', 'want', 'need', 'show',
+    'give', 'make', 'find', 'something', 'recipe', 'recipes', 'meal', 'dish', 'dishes',
+    'food', 'cook', 'cooking', 'under', 'within', 'minutes', 'minute', 'mins', 'lunch',
+    'dinner', 'breakfast', 'snack', 'quick', 'easy'
 }
 
 CUISINE_KEYWORDS = {
-    "indian": "Indian",
-    "south indian": "South Indian",
-    "north indian": "North Indian",
-    "punjabi": "Punjabi",
-    "gujarati": "Gujarati",
-    "bengali": "Bengali",
-    "mughlai": "Mughlai",
-    "hyderabadi": "Hyderabadi",
-    "italian": "Italian",
-    "mexican": "Mexican",
-    "thai": "Thai",
-    "chinese": "Chinese",
-    "japanese": "Japanese",
-    "korean": "Korean",
-    "mediterranean": "Mediterranean",
-    "american": "American",
-    "french": "French",
-    "greek": "Greek",
-    "turkish": "Turkish",
-    "middle eastern": "Middle Eastern",
-    "lebanese": "Lebanese",
-    "spanish": "Spanish",
-    "caribbean": "Caribbean",
+    'indian': 'Indian',
+    'south indian': 'South Indian',
+    'north indian': 'North Indian',
+    'punjabi': 'Punjabi',
+    'gujarati': 'Gujarati',
+    'bengali': 'Bengali',
+    'mughlai': 'Mughlai',
+    'hyderabadi': 'Hyderabadi',
+    'italian': 'Italian',
+    'mexican': 'Mexican',
+    'thai': 'Thai',
+    'chinese': 'Chinese',
+    'japanese': 'Japanese',
+    'korean': 'Korean',
+    'mediterranean': 'Mediterranean',
+    'american': 'American',
+    'french': 'French',
+    'greek': 'Greek',
+    'turkish': 'Turkish',
+    'middle eastern': 'Middle Eastern',
+    'lebanese': 'Lebanese',
+    'spanish': 'Spanish',
+    'caribbean': 'Caribbean',
 }
 
 DIET_KEYWORDS = (
-    ("non vegetarian", "non_vegetarian"),
-    ("non-vegetarian", "non_vegetarian"),
-    ("non veg", "non_vegetarian"),
-    ("non-veg", "non_vegetarian"),
-    ("pescatarian", "pescatarian"),
-    ("eggetarian", "eggetarian"),
-    ("eggitarian", "eggetarian"),
-    ("vegan", "vegan"),
-    ("vegetarian", "vegetarian"),
-    ("veg", "vegetarian"),
+    ('non vegetarian', 'non_vegetarian'),
+    ('non-vegetarian', 'non_vegetarian'),
+    ('non veg', 'non_vegetarian'),
+    ('non-veg', 'non_vegetarian'),
+    ('pescatarian', 'pescatarian'),
+    ('eggetarian', 'eggetarian'),
+    ('eggitarian', 'eggetarian'),
+    ('vegan', 'vegan'),
+    ('vegetarian', 'vegetarian'),
+    ('veg', 'vegetarian'),
 )
 
 ALLERGY_KEYWORDS = (
-    ("tree nut", "tree_nut"),
-    ("peanuts", "peanut"),
-    ("peanut", "peanut"),
-    ("dairy", "dairy"),
-    ("milk", "dairy"),
-    ("gluten", "gluten"),
-    ("soy", "soy"),
-    ("eggs", "egg"),
-    ("egg", "egg"),
-    ("shellfish", "shellfish"),
+    ('tree nut', 'tree_nut'),
+    ('peanuts', 'peanut'),
+    ('peanut', 'peanut'),
+    ('dairy', 'dairy'),
+    ('milk', 'dairy'),
+    ('gluten', 'gluten'),
+    ('soy', 'soy'),
+    ('eggs', 'egg'),
+    ('egg', 'egg'),
+    ('shellfish', 'shellfish'),
 )
 
 INGREDIENT_HINTS = {
-    "chicken",
-    "paneer",
-    "rice",
-    "egg",
-    "eggs",
-    "potato",
-    "tomato",
-    "onion",
-    "garlic",
-    "mushroom",
-    "tofu",
-    "beef",
-    "fish",
-    "pasta",
-    "cheese",
-    "spinach",
-    "lentils",
-    "dal",
+    'chicken', 'paneer', 'rice', 'egg', 'eggs', 'potato', 'tomato', 'onion', 'garlic',
+    'mushroom', 'tofu', 'beef', 'fish', 'pasta', 'cheese', 'spinach', 'lentils', 'dal',
+    'beans', 'chickpeas', 'corn', 'avocado', 'yogurt', 'milk', 'shrimp', 'cauliflower'
 }
 
 QUESTION_PATTERNS = (
-    "what is",
-    "how to",
-    "difference between",
-    "tell me about",
+    'what is',
+    'how to',
+    'difference between',
+    'tell me about',
 )
 
 
 def build_agent_input(message: str, profile: UserProfile) -> AgentInput:
     normalized_query = normalize_query(message)
-    query_tokens = tokenize_query(normalized_query)
     detected_preferences = merge_preferences(
         profile=profile,
         inferred=extract_preferences(normalized_query),
     )
+    query_tokens = tokenize_query(normalized_query, detected_preferences)
     retrieval_query = build_retrieval_query(normalized_query, detected_preferences)
     should_answer_general_food_question = any(
         pattern in normalized_query for pattern in QUESTION_PATTERNS
@@ -137,12 +105,23 @@ def build_agent_input(message: str, profile: UserProfile) -> AgentInput:
 
 def normalize_query(message: str) -> str:
     lowered = message.lower().strip()
-    return re.sub(r"\s+", " ", lowered)
+    return re.sub(r'\s+', ' ', lowered)
 
 
-def tokenize_query(normalized_query: str) -> list[str]:
-    tokens = re.findall(r"[a-zA-Z]+", normalized_query)
-    return [token for token in tokens if token not in STOPWORDS and len(token) > 1]
+def tokenize_query(normalized_query: str, preferences: PreferenceSnapshot | None = None) -> list[str]:
+    tokens = [token for token in re.findall(r'[a-zA-Z]+', normalized_query) if len(token) > 1]
+    filtered = [token for token in tokens if token not in STOPWORDS]
+
+    prioritized: list[str] = []
+    if preferences is not None:
+        for cuisine in preferences.cuisines:
+            prioritized.extend(re.findall(r'[a-zA-Z]+', cuisine.lower()))
+        if preferences.diet:
+            prioritized.extend(re.findall(r'[a-zA-Z]+', preferences.diet.replace('_', ' ')))
+        prioritized.extend(item.lower() for item in preferences.available_ingredients)
+
+    ordered = dedupe(prioritized + filtered)
+    return [token for token in ordered if len(token) > 1 and token not in STOPWORDS][:12]
 
 
 def extract_preferences(normalized_query: str) -> PreferenceSnapshot:
@@ -201,16 +180,16 @@ def build_retrieval_query(
 ) -> str:
     parts = [normalized_query]
     if preferences.cuisines:
-        parts.append("cuisines " + " ".join(preferences.cuisines))
+        parts.append('cuisines ' + ' '.join(preferences.cuisines))
     if preferences.diet:
-        parts.append("diet " + preferences.diet.replace("_", " "))
+        parts.append('diet ' + preferences.diet.replace('_', ' '))
     if preferences.available_ingredients:
-        parts.append("ingredients " + " ".join(preferences.available_ingredients))
+        parts.append('ingredients ' + ' '.join(preferences.available_ingredients))
     if preferences.excluded_ingredients:
-        parts.append("exclude " + " ".join(preferences.excluded_ingredients))
+        parts.append('exclude ' + ' '.join(preferences.excluded_ingredients))
     if preferences.max_cooking_time_minutes:
-        parts.append(f"under {preferences.max_cooking_time_minutes} minutes")
-    return " | ".join(parts)
+        parts.append(f'under {preferences.max_cooking_time_minutes} minutes')
+    return ' | '.join(parts)
 
 
 def find_cuisines(text: str) -> list[str]:
@@ -231,10 +210,10 @@ def find_all_matches(text: str, mapping: tuple[tuple[str, str], ...]) -> list[st
 
 def find_max_time(text: str) -> int | None:
     patterns = (
-        r"(\d+)\s*minutes",
-        r"(\d+)\s*mins",
-        r"under\s*(\d+)",
-        r"within\s*(\d+)",
+        r'(\d+)\s*minutes',
+        r'(\d+)\s*mins',
+        r'under\s*(\d+)',
+        r'within\s*(\d+)',
     )
     for pattern in patterns:
         match = re.search(pattern, text)
@@ -252,11 +231,11 @@ def find_excluded_ingredients(text: str) -> list[str]:
     for ingredient in sorted(INGREDIENT_HINTS):
         patterns = (
             rf"\bdon'?t have\s+{re.escape(ingredient)}s?\b",
-            rf"\bwithout\s+{re.escape(ingredient)}s?\b",
-            rf"\bno\s+{re.escape(ingredient)}s?\b",
-            rf"\bavoid\s+{re.escape(ingredient)}s?\b",
-            rf"\bskip\s+{re.escape(ingredient)}s?\b",
-            rf"\binstead of\s+{re.escape(ingredient)}s?\b",
+            rf'\bwithout\s+{re.escape(ingredient)}s?\b',
+            rf'\bno\s+{re.escape(ingredient)}s?\b',
+            rf'\bavoid\s+{re.escape(ingredient)}s?\b',
+            rf'\bskip\s+{re.escape(ingredient)}s?\b',
+            rf'\binstead of\s+{re.escape(ingredient)}s?\b',
         )
         if any(re.search(pattern, text) for pattern in patterns):
             matches.append(ingredient)
@@ -264,7 +243,7 @@ def find_excluded_ingredients(text: str) -> list[str]:
 
 
 def contains_phrase(text: str, phrase: str) -> bool:
-    pattern = r"\b" + re.escape(phrase) + r"\b"
+    pattern = r'\b' + re.escape(phrase) + r'\b'
     return re.search(pattern, text) is not None
 
 

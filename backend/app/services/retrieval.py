@@ -2,16 +2,31 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.schemas import AgentInput, RecipeMatch, RecipeRecord, RetrievalTrace
 
+if TYPE_CHECKING:
+    from app.repositories.indexed_recipe_repository import IndexedRecipeRepository
+    from app.services.neural_reranker import NeuralReranker
+
 
 RELAXATION_ORDER = (
-    "available_ingredients",
-    "max_cooking_time_minutes",
-    "cuisines",
-    "diet",
+    'available_ingredients',
+    'max_cooking_time_minutes',
+    'cuisines',
+    'diet',
 )
+
+ALLERGY_ALIASES: dict[str, set[str]] = {
+    'dairy': {'milk', 'cheese', 'paneer', 'yogurt', 'butter', 'cream'},
+    'peanut': {'peanut', 'peanuts'},
+    'egg': {'egg', 'eggs'},
+    'gluten': {'flour', 'bread', 'pasta', 'wheat', 'tortilla'},
+    'shellfish': {'shrimp', 'prawn', 'crab', 'lobster'},
+    'soy': {'soy', 'tofu', 'soy sauce'},
+    'tree_nut': {'cashew', 'almond', 'walnut', 'pistachio'},
+}
 
 
 @dataclass
@@ -20,32 +35,87 @@ class RetrievalResult:
     trace: RetrievalTrace
 
 
+@dataclass
+class CandidateSearchResult:
+    total_recipes: int
+    candidates: list[RecipeRecord]
+    base_scores: dict[str, float]
+
+
 class RetrievalService:
+    def __init__(
+        self,
+        search_index: IndexedRecipeRepository | None = None,
+        neural_reranker: NeuralReranker | None = None,
+        rerank_top_k: int = 25,
+        indexed_candidate_limit: int = 120,
+    ) -> None:
+        self.search_index = search_index
+        self.neural_reranker = neural_reranker
+        self.rerank_top_k = rerank_top_k
+        self.indexed_candidate_limit = indexed_candidate_limit
+
+    def uses_index(self) -> bool:
+        return bool(self.search_index and self.search_index.is_available())
+
     def find_matches(
         self,
         *,
-        recipes: list[RecipeRecord],
+        recipes: list[RecipeRecord] | None,
         agent_input: AgentInput,
         limit: int = 5,
     ) -> RetrievalResult:
-        filtered = self._filter_metadata(recipes, agent_input)
+        candidate_result = self._get_candidates(recipes=recipes, agent_input=agent_input)
         fallback_applied = False
         fallback_reason: str | None = None
 
-        if not filtered:
-            filtered, fallback_reason = self._relax_constraints(recipes, agent_input)
-            fallback_applied = bool(filtered)
+        if not candidate_result.candidates:
+            candidate_result, fallback_reason = self._relax_constraints(recipes, agent_input)
+            fallback_applied = bool(candidate_result.candidates)
 
-        ranked = self._rank(filtered, agent_input)[:limit]
+        ranked_items = self._rank(
+            candidate_result.candidates,
+            agent_input,
+            candidate_result.base_scores,
+        )
+        if self.neural_reranker is not None:
+            ranked_items = self.neural_reranker.rerank(
+                query=agent_input.normalized_query,
+                ranked_items=ranked_items,
+                top_k=self.rerank_top_k,
+            )
+        ranked = [match for _, match in ranked_items[:limit]]
         return RetrievalResult(
             matches=ranked,
             trace=RetrievalTrace(
-                total_recipes=len(recipes),
-                metadata_matches=len(filtered),
+                total_recipes=candidate_result.total_recipes,
+                metadata_matches=len(candidate_result.candidates),
                 vector_matches=len(ranked),
                 fallback_applied=fallback_applied,
                 fallback_reason=fallback_reason,
             ),
+        )
+
+    def _get_candidates(
+        self,
+        *,
+        recipes: list[RecipeRecord] | None,
+        agent_input: AgentInput,
+    ) -> CandidateSearchResult:
+        if self.uses_index():
+            indexed = self.search_index.search(agent_input=agent_input, limit=self.indexed_candidate_limit)
+            return CandidateSearchResult(
+                total_recipes=indexed.total_recipes,
+                candidates=indexed.candidates,
+                base_scores=indexed.base_scores,
+            )
+
+        recipe_list = recipes or []
+        filtered = self._filter_metadata(recipe_list, agent_input)
+        return CandidateSearchResult(
+            total_recipes=len(recipe_list),
+            candidates=filtered,
+            base_scores={},
         )
 
     def _filter_metadata(
@@ -61,9 +131,7 @@ class RetrievalService:
             filtered = [
                 recipe
                 for recipe in filtered
-                if recipe.cuisine
-                and recipe.cuisine.lower() in target_cuisines
-                or any(item.lower() in target_cuisines for item in recipe.cuisines)
+                if self._recipe_matches_cuisines(recipe, target_cuisines)
             ]
 
         if preferences.diet:
@@ -89,8 +157,11 @@ class RetrievalService:
                 if wanted.intersection({item.lower() for item in recipe.ingredients})
             ]
 
-        if preferences.excluded_ingredients:
-            blocked_ingredients = {item.lower() for item in preferences.excluded_ingredients}
+        blocked_ingredients = self.expand_blocked_terms(
+            preferences.excluded_ingredients,
+            preferences.allergies,
+        )
+        if blocked_ingredients:
             filtered = [
                 recipe
                 for recipe in filtered
@@ -99,62 +170,57 @@ class RetrievalService:
                 )
             ]
 
-        if preferences.allergies:
-            blocked = {item.lower() for item in preferences.allergies}
-            filtered = [
-                recipe
-                for recipe in filtered
-                if not self._contains_allergy(recipe, blocked)
-            ]
-
         return filtered
 
     def _relax_constraints(
         self,
-        recipes: list[RecipeRecord],
+        recipes: list[RecipeRecord] | None,
         agent_input: AgentInput,
-    ) -> tuple[list[RecipeRecord], str | None]:
+    ) -> tuple[CandidateSearchResult, str | None]:
         preferences = agent_input.detected_preferences.model_copy(deep=True)
         for field_name in RELAXATION_ORDER:
             if not getattr(preferences, field_name):
                 continue
-            if field_name == "available_ingredients":
+            if field_name == 'available_ingredients':
                 preferences.available_ingredients = []
-            elif field_name == "max_cooking_time_minutes":
+            elif field_name == 'max_cooking_time_minutes':
                 preferences.max_cooking_time_minutes = None
-            elif field_name == "cuisines":
+            elif field_name == 'cuisines':
                 preferences.cuisines = []
-            elif field_name == "diet":
+            elif field_name == 'diet':
                 preferences.diet = None
 
             relaxed_input = agent_input.model_copy(deep=True)
             relaxed_input.detected_preferences = preferences
-            filtered = self._filter_metadata(recipes, relaxed_input)
-            if filtered:
-                return filtered, f"Relaxed {field_name.replace('_', ' ')} constraint."
+            candidate_result = self._get_candidates(recipes=recipes, agent_input=relaxed_input)
+            if candidate_result.candidates:
+                return candidate_result, f"Relaxed {field_name.replace('_', ' ')} constraint."
 
-        return [], None
+        return CandidateSearchResult(total_recipes=len(recipes or []), candidates=[], base_scores={}), None
 
     def _rank(
         self,
         recipes: list[RecipeRecord],
         agent_input: AgentInput,
-    ) -> list[RecipeMatch]:
+        base_scores: dict[str, float] | None = None,
+    ) -> list[tuple[RecipeRecord, RecipeMatch]]:
         query_tokens = set(agent_input.query_tokens)
-        matches: list[RecipeMatch] = []
+        matches: list[tuple[RecipeRecord, RecipeMatch]] = []
         for recipe in recipes:
-            searchable = " ".join(
+            searchable = ' '.join(
                 [
                     recipe.title,
-                    recipe.description or "",
-                    " ".join(recipe.ingredients),
-                    " ".join(recipe.tags),
-                    " ".join(recipe.instructions),
+                    recipe.description or '',
+                    ' '.join(recipe.ingredients),
+                    ' '.join(recipe.tags),
+                    ' '.join(recipe.instructions),
                 ],
             ).lower()
-            recipe_tokens = set(re.findall(r"[a-zA-Z]+", searchable))
+            recipe_tokens = set(re.findall(r'[a-zA-Z]+', searchable))
             overlap = query_tokens.intersection(recipe_tokens)
             score = float(len(overlap))
+            if base_scores:
+                score += base_scores.get(recipe.recipe_id, 0.0) * 4.0
             if recipe.rating is not None:
                 score += recipe.rating / 5
             if agent_input.detected_preferences.available_ingredients:
@@ -164,21 +230,20 @@ class RetrievalService:
                 score += len(ingredient_overlap) * 1.5
 
             reasons = self._build_match_reasons(recipe, agent_input, overlap)
-            matches.append(
-                RecipeMatch(
-                    recipe_id=recipe.recipe_id,
-                    title=recipe.title,
-                    cuisine=recipe.cuisine,
-                    cuisines=recipe.cuisines,
-                    diet=recipe.diet,
-                    total_time_minutes=recipe.total_time_minutes,
-                    ingredients=recipe.ingredients,
-                    score=round(score, 2),
-                    match_reasons=reasons,
-                ),
+            match = RecipeMatch(
+                recipe_id=recipe.recipe_id,
+                title=recipe.title,
+                cuisine=recipe.cuisine,
+                cuisines=recipe.cuisines,
+                diet=recipe.diet,
+                total_time_minutes=recipe.total_time_minutes,
+                ingredients=recipe.ingredients,
+                score=round(score, 2),
+                match_reasons=reasons,
             )
+            matches.append((recipe, match))
 
-        return sorted(matches, key=lambda item: item.score, reverse=True)
+        return sorted(matches, key=lambda item: item[1].score, reverse=True)
 
     def _build_match_reasons(
         self,
@@ -188,58 +253,69 @@ class RetrievalService:
     ) -> list[str]:
         reasons: list[str] = []
         preferences = agent_input.detected_preferences
-        if preferences.cuisines and any(
-            cuisine.lower() in {recipe.cuisine.lower()} if recipe.cuisine else set()
-            for cuisine in preferences.cuisines
+        if preferences.cuisines and self._recipe_matches_cuisines(
+            recipe,
+            {item.lower() for item in preferences.cuisines},
         ):
-            reasons.append("Matches preferred cuisine.")
-        if preferences.diet and recipe.diet == preferences.diet:
-            reasons.append("Matches diet preference.")
+            reasons.append('Matches preferred cuisine.')
+        if preferences.diet and recipe.diet and self._diet_compatible(recipe.diet, preferences.diet):
+            reasons.append('Matches diet preference.')
         if preferences.max_cooking_time_minutes and recipe.total_time_minutes is not None:
             if recipe.total_time_minutes <= preferences.max_cooking_time_minutes:
-                reasons.append("Fits cooking time limit.")
+                reasons.append('Fits cooking time limit.')
         if preferences.available_ingredients:
             requested = {item.lower() for item in preferences.available_ingredients}
             available = {item.lower() for item in recipe.ingredients}
             ingredient_overlap = requested.intersection(available)
             if ingredient_overlap:
                 reasons.append(
-                    "Uses requested ingredients: " + ", ".join(sorted(ingredient_overlap)),
+                    'Uses requested ingredients: ' + ', '.join(sorted(ingredient_overlap)[:5]),
                 )
         if overlap:
-            reasons.append("Relevant query terms: " + ", ".join(sorted(overlap)[:5]))
-        if preferences.excluded_ingredients:
-            blocked = {item.lower() for item in preferences.excluded_ingredients}
-            if not blocked.intersection({item.lower() for item in recipe.ingredients}):
-                reasons.append("Avoids excluded ingredients.")
+            reasons.append('Relevant query terms: ' + ', '.join(sorted(overlap)[:5]))
+        blocked = self.expand_blocked_terms(
+            preferences.excluded_ingredients,
+            preferences.allergies,
+        )
+        if blocked and not blocked.intersection({item.lower() for item in recipe.ingredients}):
+            reasons.append('Avoids excluded ingredients.')
         return reasons
 
-    def _diet_compatible(self, recipe_diet: str | None, requested_diet: str) -> bool:
-        if requested_diet == "vegetarian":
-            return recipe_diet in {"vegetarian", "vegan", "eggetarian"}
-        if requested_diet == "vegan":
-            return recipe_diet == "vegan"
-        if requested_diet == "eggetarian":
-            return recipe_diet in {"eggetarian", "vegetarian"}
-        if requested_diet == "pescatarian":
-            return recipe_diet in {"pescatarian", "vegetarian", "vegan"}
-        if requested_diet == "non_vegetarian":
-            return recipe_diet in {"non_vegetarian", "pescatarian", "eggetarian"}
-        return recipe_diet == requested_diet
+    def _recipe_matches_cuisines(
+        self,
+        recipe: RecipeRecord,
+        target_cuisines: set[str],
+    ) -> bool:
+        recipe_cuisines = {item.lower() for item in recipe.cuisines}
+        if recipe.cuisine:
+            recipe_cuisines.add(recipe.cuisine.lower())
+        return bool(recipe_cuisines.intersection(target_cuisines))
 
-    def _contains_allergy(self, recipe: RecipeRecord, blocked: set[str]) -> bool:
-        haystack = " ".join(recipe.ingredients + recipe.tags + [recipe.title]).lower()
-        aliases = {
-            "dairy": {"milk", "cheese", "paneer", "yogurt", "butter", "cream"},
-            "peanut": {"peanut", "peanuts"},
-            "egg": {"egg", "eggs"},
-            "gluten": {"flour", "bread", "pasta", "wheat", "tortilla"},
-            "shellfish": {"shrimp", "prawn", "crab", "lobster"},
-            "soy": {"soy", "tofu", "soy sauce"},
-            "tree_nut": {"cashew", "almond", "walnut", "pistachio"},
-        }
-        for allergy in blocked:
-            terms = aliases.get(allergy, {allergy})
-            if any(term in haystack for term in terms):
-                return True
-        return False
+    def _diet_compatible(self, recipe_diet: str | None, requested_diet: str) -> bool:
+        if recipe_diet is None:
+            return True
+        recipe_key = recipe_diet.lower()
+        requested_key = requested_diet.lower()
+        if requested_key == 'vegetarian':
+            return recipe_key in {'vegetarian', 'vegan', 'eggetarian'}
+        if requested_key == 'vegan':
+            return recipe_key == 'vegan'
+        if requested_key == 'eggetarian':
+            return recipe_key in {'eggetarian', 'vegetarian'}
+        if requested_key == 'pescatarian':
+            return recipe_key in {'pescatarian', 'vegetarian', 'vegan'}
+        if requested_key == 'non_vegetarian':
+            return recipe_key in {'non_vegetarian', 'pescatarian', 'eggetarian'}
+        return recipe_key == requested_key
+
+    def expand_blocked_terms(
+        self,
+        excluded_ingredients: list[str],
+        allergies: list[str],
+    ) -> set[str]:
+        blocked = {item.lower() for item in excluded_ingredients}
+        for allergy in allergies:
+            allergy_key = allergy.lower()
+            blocked.add(allergy_key)
+            blocked.update(ALLERGY_ALIASES.get(allergy_key, {allergy_key}))
+        return {term for term in blocked if term}
