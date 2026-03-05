@@ -37,6 +37,14 @@ class Settings(BaseSettings):
         alias='NEURAL_RERANKER_MODEL',
     )
     neural_rerank_top_k: int = Field(default=25, alias='NEURAL_RERANK_TOP_K')
+    auth_db_path: str = Field(default='backend/data/processed/auth.sqlite', alias='AUTH_DB_PATH')
+    smtp_host: str | None = Field(default=None, alias='SMTP_HOST')
+    smtp_port: int = Field(default=587, alias='SMTP_PORT')
+    smtp_username: str | None = Field(default=None, alias='SMTP_USERNAME')
+    smtp_password: str | None = Field(default=None, alias='SMTP_PASSWORD')
+    smtp_from_email: str | None = Field(default=None, alias='SMTP_FROM_EMAIL')
+    smtp_use_tls: bool = Field(default=True, alias='SMTP_USE_TLS')
+    otp_expiry_minutes: int = Field(default=10, alias='OTP_EXPIRY_MINUTES')
 
     model_config = SettingsConfigDict(
         env_file=('backend/.env', '.env'),

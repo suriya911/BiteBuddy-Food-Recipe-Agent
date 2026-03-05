@@ -12,6 +12,20 @@ from app.schemas.chat import (
     RetrievalTrace,
     UserProfile,
 )
+from app.schemas.auth import (
+    AuthResponse,
+    AuthUser,
+    FavoriteRecipeItem,
+    FavoriteSaveRequest,
+    HistoryItem,
+    HistorySaveRequest,
+    LoginRequest,
+    MessageResponse,
+    RegisterResponse,
+    RegisterRequest,
+    ResendOtpRequest,
+    VerifyEmailRequest,
+)
 from app.schemas.recipe import RecipeDocument, RecipeRecord
 
 __all__ = [
@@ -23,6 +37,18 @@ __all__ = [
     "IngredientSubstitution",
     "PreferenceSnapshot",
     "RecipeMatch",
+    "RegisterRequest",
+    "RegisterResponse",
+    "VerifyEmailRequest",
+    "ResendOtpRequest",
+    "MessageResponse",
+    "LoginRequest",
+    "AuthUser",
+    "AuthResponse",
+    "FavoriteRecipeItem",
+    "FavoriteSaveRequest",
+    "HistoryItem",
+    "HistorySaveRequest",
     "RecipeDocument",
     "RecipeRecord",
     "RetrievalTrace",

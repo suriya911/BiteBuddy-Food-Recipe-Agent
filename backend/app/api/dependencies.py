@@ -1,9 +1,13 @@
 from functools import lru_cache
 from pathlib import Path
 
+from fastapi import Depends, Header, HTTPException
+
 from app.core.config import get_settings
 from app.repositories.indexed_recipe_repository import IndexedRecipeRepository
 from app.repositories.recipe_repository import RecipeRepository
+from app.services.email_service import EmailService
+from app.services.user_store import UserRecord, UserStore
 from app.services.agent_workflow import AgentWorkflowService
 from app.services.chat_service import ChatService
 from app.services.neural_reranker import NeuralReranker
@@ -80,3 +84,38 @@ def get_retrieval_service() -> RetrievalService:
 @lru_cache
 def get_agent_workflow_service() -> AgentWorkflowService:
     return AgentWorkflowService()
+
+
+@lru_cache
+def get_user_store() -> UserStore:
+    settings = get_settings()
+    db_path = Path(settings.auth_db_path)
+    if not db_path.is_absolute():
+        db_path = BASE_DIR / db_path
+    return UserStore(db_path)
+
+
+def get_current_user(
+    authorization: str | None = Header(default=None),
+    user_store: UserStore = Depends(get_user_store),
+) -> UserRecord:
+    if not authorization or not authorization.lower().startswith('bearer '):
+        raise HTTPException(status_code=401, detail='Missing bearer token.')
+    token = authorization.split(' ', 1)[1].strip()
+    user = user_store.get_user_by_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail='Invalid or expired token.')
+    return user
+
+
+@lru_cache
+def get_email_service() -> EmailService:
+    settings = get_settings()
+    return EmailService(
+        host=settings.smtp_host,
+        port=settings.smtp_port,
+        username=settings.smtp_username,
+        password=settings.smtp_password,
+        from_email=settings.smtp_from_email,
+        use_tls=settings.smtp_use_tls,
+    )

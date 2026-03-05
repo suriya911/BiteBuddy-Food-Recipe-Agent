@@ -1,4 +1,4 @@
-import { Send, Bot, User, Sparkles, AlertTriangle, ArrowRightLeft, Brain, Info } from "lucide-react";
+import { Send, Bot, User, AlertTriangle, ArrowRightLeft, Brain, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -71,16 +71,6 @@ const ChatPanel = ({
 }: ChatPanelProps) => {
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] bg-card rounded-2xl border border-border shadow-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg gradient-warm flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-primary-foreground" />
-        </div>
-        <div>
-          <span className="font-medium text-sm text-foreground">BiteBuddy AI</span>
-          <span className="text-[10px] text-muted-foreground ml-2">Your recipe assistant</span>
-        </div>
-      </div>
-
       <ScrollArea className="flex-1 px-4 py-4">
         <div className="space-y-4">
           <AnimatePresence initial={false}>

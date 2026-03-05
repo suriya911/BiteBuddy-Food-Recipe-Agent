@@ -1,4 +1,4 @@
-import { Clock, Users, Flame, Sparkles } from "lucide-react";
+import { Clock, Users, Flame, Sparkles, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { RecipeCardData } from "@/lib/api";
 import fallbackImage from "@/assets/hero-food.jpg";
@@ -6,13 +6,23 @@ import fallbackImage from "@/assets/hero-food.jpg";
 interface RecipeCardProps {
   recipe: RecipeCardData;
   onClick: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (recipe: RecipeCardData) => void;
 }
 
-const RecipeCard = ({ recipe, onClick }: RecipeCardProps) => {
+const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: RecipeCardProps) => {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group w-full text-left bg-card rounded-2xl border border-border overflow-hidden shadow-card hover:shadow-warm transition-all duration-300 hover:-translate-y-1"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className="group w-full text-left bg-card rounded-2xl border border-border overflow-hidden shadow-card hover:shadow-warm transition-all duration-300 hover:-translate-y-1 cursor-pointer"
     >
       <div className="relative h-44 overflow-hidden">
         <img
@@ -31,6 +41,21 @@ const RecipeCard = ({ recipe, onClick }: RecipeCardProps) => {
             {recipe.difficulty || "Recommended"}
           </Badge>
         </div>
+        <button
+          type="button"
+          className={`absolute bottom-3 right-3 rounded-full h-8 w-8 flex items-center justify-center border transition-colors ${
+            isFavorite
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-card/90 backdrop-blur-sm border-border text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFavorite?.(recipe);
+          }}
+          aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+        >
+          <Heart className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
+        </button>
         <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-foreground/40 to-transparent" />
       </div>
       <div className="p-4 space-y-2">
@@ -63,7 +88,7 @@ const RecipeCard = ({ recipe, onClick }: RecipeCardProps) => {
           </div>
         ) : null}
       </div>
-    </button>
+    </div>
   );
 };
 
