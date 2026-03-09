@@ -30,7 +30,7 @@ const RecipeGrid = ({
         <span className="text-sm text-muted-foreground">{recipes.length} recipes found</span>
       </div>
       {recipes.length ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
           {recipes.map((recipe, index) => (
             <motion.div
               key={recipe.id}

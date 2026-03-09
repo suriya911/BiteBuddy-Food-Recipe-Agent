@@ -25,7 +25,7 @@ from app.schemas import (
     RegisterRequest,
     VerifyEmailRequest,
 )
-from app.services.chat_service import ChatService
+from app.services.langgraph_service import LangGraphChatService
 from app.services.email_service import EmailService
 from app.services.user_store import UserRecord, UserStore
 from app.core.config import get_settings
@@ -42,7 +42,7 @@ def healthcheck() -> dict[str, str]:
 @api_router.post("/chat", response_model=AgentReply, tags=["chat"])
 def chat(
     payload: ChatRequest,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: LangGraphChatService = Depends(get_chat_service),
 ) -> AgentReply:
     return chat_service.handle_chat(payload)
 
@@ -64,9 +64,6 @@ def register(
     user_store: UserStore = Depends(get_user_store),
     email_service: EmailService = Depends(get_email_service),
 ) -> RegisterResponse:
-    if not email_service.is_configured():
-        raise HTTPException(status_code=503, detail="SMTP is not configured on the server.")
-
     try:
         user = user_store.create_user(
             username=payload.username,
@@ -75,17 +72,20 @@ def register(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    otp_code = user_store.create_email_otp(
-        user_id=user.user_id,
-        expiry_minutes=get_settings().otp_expiry_minutes,
-    )
-    email_service.send_otp(
-        to_email=user.email,
-        username=user.username,
-        otp_code=otp_code,
-        expiry_minutes=get_settings().otp_expiry_minutes,
-    )
-    return RegisterResponse(message="OTP sent to your email.", email=user.email)
+    if email_service.is_configured():
+        otp_code = user_store.create_email_otp(
+            user_id=user.user_id,
+            expiry_minutes=get_settings().otp_expiry_minutes,
+        )
+        email_service.send_otp(
+            to_email=user.email,
+            username=user.username,
+            otp_code=otp_code,
+            expiry_minutes=get_settings().otp_expiry_minutes,
+        )
+        return RegisterResponse(message="OTP sent to your email.", email=user.email)
+    user_store.mark_user_verified(user.user_id)
+    return RegisterResponse(message="Account created (email verification skipped).", email=user.email)
 
 
 @api_router.post("/auth/verify-email", response_model=AuthResponse, tags=["auth"])

@@ -4,3 +4,6 @@ sentence-transformers
 nbformat
 nbclient
 ipykernel
+psycopg[binary]
+qdrant-client
+redis

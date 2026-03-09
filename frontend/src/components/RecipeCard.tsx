@@ -24,7 +24,7 @@ const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: R
       }}
       className="group w-full text-left bg-card rounded-2xl border border-border overflow-hidden shadow-card hover:shadow-warm transition-all duration-300 hover:-translate-y-1 cursor-pointer"
     >
-      <div className="relative h-44 overflow-hidden">
+      <div className="relative h-44 sm:h-48 overflow-hidden">
         <img
           src={recipe.image || fallbackImage}
           alt={recipe.title}
@@ -41,9 +41,10 @@ const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: R
             {recipe.difficulty || "Recommended"}
           </Badge>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-foreground/40 to-transparent pointer-events-none" />
         <button
           type="button"
-          className={`absolute bottom-3 right-3 rounded-full h-8 w-8 flex items-center justify-center border transition-colors ${
+          className={`absolute bottom-3 right-3 rounded-full h-8 w-8 flex items-center justify-center border transition-colors z-10 ${
             isFavorite
               ? "bg-primary text-primary-foreground border-primary"
               : "bg-card/90 backdrop-blur-sm border-border text-muted-foreground hover:text-foreground"
@@ -56,18 +57,17 @@ const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: R
         >
           <Heart className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
         </button>
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-foreground/40 to-transparent" />
       </div>
-      <div className="p-4 space-y-2">
+      <div className="p-4 space-y-2.5">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-base text-foreground leading-snug">{recipe.title}</h3>
-          <span className="text-[11px] text-primary font-medium shrink-0">View Details</span>
+          <h3 className="font-display text-base sm:text-lg text-foreground leading-snug">{recipe.title}</h3>
+          <span className="text-[11px] sm:text-xs text-primary font-medium shrink-0">View Details</span>
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{recipe.description}</p>
-        <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground flex-wrap">
-          {recipe.cookTime ? <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{recipe.cookTime}</span> : null}
-          {recipe.servings ? <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{recipe.servings}</span> : null}
-          {recipe.calories ? <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{recipe.calories} kcal</span> : null}
+        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-relaxed">{recipe.description}</p>
+        <div className="flex items-center gap-3 pt-1 text-xs sm:text-sm text-muted-foreground flex-wrap">
+          {recipe.cookTime ? <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{recipe.cookTime}</span> : null}
+          {recipe.servings ? <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{recipe.servings}</span> : null}
+          {recipe.calories ? <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{recipe.calories} kcal</span> : null}
         </div>
         <div className="flex flex-wrap gap-1 pt-1">
           {recipe.dietType ? (

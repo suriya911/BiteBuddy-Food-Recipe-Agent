@@ -103,6 +103,9 @@ type ChatResponse = {
   retrieval_trace: RetrievalTrace | null;
   conflicts: AgentConflict[];
   substitution_suggestions: IngredientSubstitution[];
+  agent_input: {
+    detected_preferences: UserProfile;
+  };
 };
 
 type RecipeDetailResponse = {
@@ -162,6 +165,7 @@ export type ChatResult = {
   recipes: RecipeCardData[];
   retrievalTrace: RetrievalTrace | null;
   assistantInsights: ChatInsight[];
+  detectedProfile: UserProfile | null;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
@@ -209,6 +213,7 @@ export async function sendChatMessage(input: {
     recipes: payload.recipe_matches.map(mapRecipeMatch),
     retrievalTrace: payload.retrieval_trace,
     assistantInsights: buildInsights(payload),
+    detectedProfile: payload.agent_input?.detected_preferences ?? null,
   };
 }
 
@@ -229,8 +234,8 @@ export async function fetchRecipe(recipeId: string): Promise<RecipeCardData> {
     cuisine: payload.cuisine ?? payload.cuisines[0] ?? "Recommended",
     tags: payload.tags,
     calories: null,
-    ingredients: payload.ingredients,
-    instructions: payload.instructions,
+    ingredients: normalizeIngredients(payload.ingredients),
+    instructions: Array.isArray(payload.instructions) ? payload.instructions : [],
     dietType: payload.diet,
     source: payload.source_url,
   };
@@ -373,6 +378,7 @@ export async function addHistory(
 }
 
 function mapRecipeMatch(recipe: RecipeMatchResponse): RecipeCardData {
+  const ingredients = normalizeIngredients(recipe.ingredients);
   return {
     id: recipe.recipe_id,
     title: recipe.title,
@@ -384,7 +390,7 @@ function mapRecipeMatch(recipe: RecipeMatchResponse): RecipeCardData {
     cuisine: recipe.cuisine ?? recipe.cuisines[0] ?? "Recommended",
     tags: recipe.cuisines.slice(0, 2),
     calories: null,
-    ingredients: recipe.ingredients,
+    ingredients,
     instructions: [],
     dietType: recipe.diet,
     matchReason: recipe.match_reasons.join(" "),
@@ -464,6 +470,7 @@ async function extractError(response: Response, fallback: string): Promise<strin
 }
 
 function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
+  const ingredients = normalizeIngredients(input.ingredients);
   return {
     id: String(input.id ?? input.recipe_id ?? ""),
     title: String(input.title ?? "Recipe"),
@@ -475,7 +482,7 @@ function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
     cuisine: String(input.cuisine ?? "Recommended"),
     tags: Array.isArray(input.tags) ? (input.tags as string[]) : [],
     calories: (input.calories as number | null | undefined) ?? null,
-    ingredients: Array.isArray(input.ingredients) ? (input.ingredients as string[]) : [],
+    ingredients,
     instructions: Array.isArray(input.instructions) ? (input.instructions as string[]) : [],
     conflicts: Array.isArray(input.conflicts) ? (input.conflicts as string[]) : [],
     substitutions: Array.isArray(input.substitutions)
@@ -485,4 +492,25 @@ function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
     dietType: (input.dietType as string | null | undefined) ?? null,
     source: (input.source as string | null | undefined) ?? null,
   };
+}
+
+function normalizeIngredients(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof raw === "string" && raw.startsWith("c(")) {
+    return raw
+      .replace(/^c\(/, "")
+      .replace(/\)$/, "")
+      .split(",")
+      .map((item) => item.replace(/"/g, "").trim())
+      .filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
 }

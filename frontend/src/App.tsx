@@ -13,11 +13,18 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/home" element={<Index />} />
           <Route path="/chat" element={<Index />} />
+          <Route path="/myrecipes" element={<Index />} />
+          <Route path="/history" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

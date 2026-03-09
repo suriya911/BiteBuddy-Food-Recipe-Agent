@@ -23,6 +23,26 @@ Example:
 docker compose --profile local-db up --build
 ```
 
+Local data stack now includes:
+- Postgres (`localhost:5432`)
+- Redis (`localhost:6379`)
+- Qdrant (`localhost:6333`)
+
+Terraform scaffold for EC2 + Docker bootstrap:
+
+```text
+infra/terraform
+```
+
+Quick start:
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
 ### Backend Option B: AWS Lambda + API Gateway
 
 - Adapter: `Mangum`

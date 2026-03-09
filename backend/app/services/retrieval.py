@@ -9,6 +9,8 @@ from app.schemas import AgentInput, RecipeMatch, RecipeRecord, RetrievalTrace
 if TYPE_CHECKING:
     from app.repositories.indexed_recipe_repository import IndexedRecipeRepository
     from app.services.neural_reranker import NeuralReranker
+    from app.services.qdrant_retrieval import QdrantRetrievalService
+    from app.services.graph_traversal import GraphTraversalService
 
 
 RELAXATION_ORDER = (
@@ -47,11 +49,19 @@ class RetrievalService:
         self,
         search_index: IndexedRecipeRepository | None = None,
         neural_reranker: NeuralReranker | None = None,
+        qdrant_retrieval: QdrantRetrievalService | None = None,
+        graph_traversal: GraphTraversalService | None = None,
+        graph_weight: float = 0.3,
+        vector_weight: float = 0.7,
         rerank_top_k: int = 25,
         indexed_candidate_limit: int = 120,
     ) -> None:
         self.search_index = search_index
         self.neural_reranker = neural_reranker
+        self.qdrant_retrieval = qdrant_retrieval
+        self.graph_traversal = graph_traversal
+        self.graph_weight = graph_weight
+        self.vector_weight = vector_weight
         self.rerank_top_k = rerank_top_k
         self.indexed_candidate_limit = indexed_candidate_limit
 
@@ -63,8 +73,23 @@ class RetrievalService:
         *,
         recipes: list[RecipeRecord] | None,
         agent_input: AgentInput,
-        limit: int = 5,
+        limit: int = 10,
     ) -> RetrievalResult:
+        if self.qdrant_retrieval is not None:
+            qdrant_result = self.qdrant_retrieval.search(agent_input)
+            if self.graph_traversal is None:
+                return RetrievalResult(
+                    matches=qdrant_result.matches[:limit],
+                    trace=qdrant_result.trace,
+                )
+            merged = self._merge_graph_vector(
+                qdrant_result.matches,
+                self.graph_traversal.traverse(agent_input),
+            )
+            return RetrievalResult(
+                matches=merged[:limit],
+                trace=qdrant_result.trace,
+            )
         candidate_result = self._get_candidates(recipes=recipes, agent_input=agent_input)
         fallback_applied = False
         fallback_reason: str | None = None
@@ -95,6 +120,55 @@ class RetrievalService:
                 fallback_reason=fallback_reason,
             ),
         )
+
+    def _merge_graph_vector(
+        self,
+        vector_matches: list[RecipeMatch],
+        graph_candidates,
+    ) -> list[RecipeMatch]:
+        vector_scores = {match.recipe_id: match.score for match in vector_matches}
+        graph_scores = {str(item.recipe_id): item for item in graph_candidates}
+        combined_ids = set(vector_scores) | set(graph_scores)
+
+        merged: list[RecipeMatch] = []
+        for recipe_id in combined_ids:
+            vec_score = vector_scores.get(recipe_id, 0.0)
+            graph = graph_scores.get(recipe_id)
+            graph_score = graph.score if graph else 0.0
+            score = self.vector_weight * vec_score + self.graph_weight * graph_score
+            base_match = next((m for m in vector_matches if m.recipe_id == recipe_id), None)
+            if base_match:
+                reasons = list(base_match.match_reasons)
+                if graph:
+                    reasons.extend(graph.reasons[:3])
+                merged.append(
+                    RecipeMatch(
+                        recipe_id=base_match.recipe_id,
+                        title=base_match.title,
+                        cuisine=base_match.cuisine,
+                        cuisines=base_match.cuisines,
+                        diet=base_match.diet,
+                        total_time_minutes=base_match.total_time_minutes,
+                        ingredients=base_match.ingredients,
+                        score=round(score, 4),
+                        match_reasons=reasons[:5],
+                    )
+                )
+            elif graph:
+                merged.append(
+                    RecipeMatch(
+                        recipe_id=str(graph.recipe_id),
+                        title=graph.title,
+                        cuisine=None,
+                        cuisines=[],
+                        diet=None,
+                        total_time_minutes=graph.total_time_minutes,
+                        ingredients=[],
+                        score=round(score, 4),
+                        match_reasons=graph.reasons[:5],
+                    )
+                )
+        return sorted(merged, key=lambda item: item.score, reverse=True)
 
     def _get_candidates(
         self,

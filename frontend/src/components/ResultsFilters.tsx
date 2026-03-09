@@ -48,6 +48,15 @@ const ResultsFilters = ({
   const setExpanded = onExpandedChange ?? setInternalExpanded;
   const [ingredientInput, setIngredientInput] = useState("");
   const [excludeInput, setExcludeInput] = useState("");
+  const timeValue = profile.max_cooking_time_minutes
+    ? String(profile.max_cooking_time_minutes)
+    : "any";
+  const hasCustomTime =
+    profile.max_cooking_time_minutes !== null &&
+    !cookingTimeOptions.some((time) => time.value === String(profile.max_cooking_time_minutes));
+  const customTimeLabel = hasCustomTime
+    ? `Custom (${profile.max_cooking_time_minutes} min)`
+    : null;
 
   const toggleCuisine = (cuisine: string) => {
     const next = profile.preferred_cuisines.includes(cuisine)
@@ -168,7 +177,7 @@ const ResultsFilters = ({
                     <Clock className="w-3 h-3 text-saffron" /> Time
                   </label>
                   <Select
-                    value={profile.max_cooking_time_minutes ? String(profile.max_cooking_time_minutes) : "any"}
+                    value={timeValue}
                     onValueChange={(value) =>
                       onProfileChange({
                         ...profile,
@@ -185,6 +194,11 @@ const ResultsFilters = ({
                           {time.label}
                         </SelectItem>
                       ))}
+                      {hasCustomTime ? (
+                        <SelectItem value={String(profile.max_cooking_time_minutes)} className="text-xs">
+                          {customTimeLabel}
+                        </SelectItem>
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>

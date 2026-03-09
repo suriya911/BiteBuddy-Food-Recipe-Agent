@@ -2,6 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import {
   Clock,
   Users,
@@ -10,6 +11,7 @@ import {
   ArrowRightLeft,
   Brain,
   ExternalLink,
+  Heart,
 } from "lucide-react";
 import type { RecipeCardData } from "@/lib/api";
 import fallbackImage from "@/assets/hero-food.jpg";
@@ -18,9 +20,11 @@ interface RecipeDrawerProps {
   recipe: RecipeCardData | null;
   open: boolean;
   onClose: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (recipe: RecipeCardData) => void;
 }
 
-const RecipeDrawer = ({ recipe, open, onClose }: RecipeDrawerProps) => {
+const RecipeDrawer = ({ recipe, open, onClose, isFavorite = false, onToggleFavorite }: RecipeDrawerProps) => {
   if (!recipe) return null;
 
   return (
@@ -41,7 +45,21 @@ const RecipeDrawer = ({ recipe, open, onClose }: RecipeDrawerProps) => {
                   <Badge variant="outline" className="border-herb/30 text-herb">{recipe.dietType}</Badge>
                 ) : null}
               </div>
-              <SheetTitle className="font-display text-2xl text-foreground">{recipe.title}</SheetTitle>
+              <div className="flex items-start justify-between gap-3">
+                <SheetTitle className="font-display text-2xl text-foreground">{recipe.title}</SheetTitle>
+                {onToggleFavorite ? (
+                  <Button
+                    type="button"
+                    variant={isFavorite ? "default" : "outline"}
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => onToggleFavorite(recipe)}
+                    aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+                  >
+                    <Heart className={isFavorite ? "fill-current" : ""} />
+                  </Button>
+                ) : null}
+              </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{recipe.description}</p>
             </SheetHeader>
 

@@ -26,16 +26,29 @@ services:
     profiles:
       - local-db
 
-  chroma:
-    image: chromadb/chroma:0.5.5
-    container_name: bitebuddy-chroma
+  redis:
+    image: redis:7-alpine
+    container_name: bitebuddy-redis
     ports:
-      - "8001:8000"
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
-      - chroma_data:/chroma/chroma
+      - redis_data:/data
+    profiles:
+      - local-db
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: bitebuddy-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
     profiles:
       - local-db
 
 volumes:
   postgres_data:
-  chroma_data:
+  redis_data:
+  qdrant_data:
