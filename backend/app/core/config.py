@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +14,7 @@ class Settings(BaseSettings):
         default_factory=lambda: ['http://localhost:5173', 'http://localhost:8080'],
         alias='CORS_ORIGINS',
     )
+    cors_origin_regex: str | None = Field(default=None, alias='CORS_ORIGIN_REGEX')
 
     openai_api_key: str | None = Field(default=None, alias='OPENAI_API_KEY')
     supabase_url: str | None = Field(default=None, alias='SUPABASE_URL')
@@ -96,6 +97,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra='ignore',
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, value):
+        if isinstance(value, list):
+            return value
+        if not value:
+            return []
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned.startswith("[") and cleaned.endswith("]"):
+                cleaned = cleaned[1:-1]
+            parts = [part.strip().strip("'").strip('"') for part in cleaned.split(",")]
+            return [part for part in parts if part]
+        return value
 
     @property
     def qdrant_collection_map(self) -> dict[str, str]:

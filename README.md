@@ -230,6 +230,10 @@ Frontend variable:
 
 - `VITE_API_BASE_URL`
 
+Recommended for Vercel preview support:
+
+- `CORS_ORIGIN_REGEX` (example: `^https://.*\.vercel\.app$`)
+
 ## Deployment
 
 The repo includes deployment scaffolding for:
@@ -244,6 +248,8 @@ Before final deployment:
 - verify the uploaded frontend against the real backend
 - decide whether deployment will use the small JSONL corpus or the indexed SQLite corpus
 - run the final 3-model evaluation on `popularity`, `advanced_hybrid`, and `neural_reranker`
+- if using Terraform EC2 deployment, use `recommended_frontend_api_base_url` (HTTPS API Gateway proxy)
+- optional automation: `.github/workflows/sync-vercel-api-url.yml` auto-syncs `VITE_API_BASE_URL` in Vercel
 
 ## Important Frontend Note
 

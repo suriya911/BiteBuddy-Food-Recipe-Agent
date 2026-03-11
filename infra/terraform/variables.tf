@@ -39,6 +39,30 @@ variable "backend_port" {
   default     = 8000
 }
 
+variable "backend_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks allowed to access backend API port."
+  default     = ["0.0.0.0/0"]
+}
+
+variable "allocate_eip" {
+  type        = bool
+  description = "Allocate and attach an Elastic IP for a stable backend address."
+  default     = true
+}
+
+variable "enable_https_tunnel" {
+  type        = bool
+  description = "Create an API Gateway HTTPS proxy in front of the backend."
+  default     = true
+}
+
+variable "api_gateway_cors_origins" {
+  type        = list(string)
+  description = "Allowed CORS origins for HTTPS API Gateway proxy."
+  default     = ["https://bite-buddy-food-recipe-agent.vercel.app"]
+}
+
 variable "backend_image" {
   type        = string
   description = "Docker image for backend."

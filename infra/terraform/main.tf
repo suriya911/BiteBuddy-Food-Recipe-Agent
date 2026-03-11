@@ -61,7 +61,7 @@ resource "aws_security_group" "bitebuddy_backend_sg" {
     from_port   = var.backend_port
     to_port     = var.backend_port
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.backend_cidrs
   }
 
   egress {
@@ -78,7 +78,10 @@ resource "aws_security_group" "bitebuddy_backend_sg" {
 }
 
 locals {
-  env_lines = join("\n", [for k, v in var.backend_env : "${k}=${v}"])
+  env_lines      = join("\n", [for k, v in var.backend_env : "${k}=${v}"])
+  backend_host   = var.allocate_eip ? aws_eip.bitebuddy_backend[0].public_ip : aws_instance.bitebuddy_backend.public_ip
+  backend_origin = "http://${local.backend_host}:${var.backend_port}"
+  api_methods    = toset(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"])
 }
 
 resource "aws_instance" "bitebuddy_backend" {
@@ -103,4 +106,75 @@ resource "aws_instance" "bitebuddy_backend" {
     Name    = "${var.project_name}-ec2"
     Project = var.project_name
   }
+}
+
+resource "aws_eip" "bitebuddy_backend" {
+  count  = var.allocate_eip ? 1 : 0
+  domain = "vpc"
+
+  tags = {
+    Name    = "${var.project_name}-eip"
+    Project = var.project_name
+  }
+}
+
+resource "aws_eip_association" "bitebuddy_backend" {
+  count         = var.allocate_eip ? 1 : 0
+  instance_id   = aws_instance.bitebuddy_backend.id
+  allocation_id = aws_eip.bitebuddy_backend[0].id
+}
+
+resource "aws_apigatewayv2_api" "bitebuddy_https_proxy" {
+  count         = var.enable_https_tunnel ? 1 : 0
+  name          = "${var.project_name}-https-proxy"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_credentials = true
+    allow_headers     = ["*"]
+    allow_methods     = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    allow_origins     = var.api_gateway_cors_origins
+    max_age           = 600
+  }
+}
+
+resource "aws_apigatewayv2_integration" "bitebuddy_proxy_path" {
+  count                  = var.enable_https_tunnel ? 1 : 0
+  api_id                 = aws_apigatewayv2_api.bitebuddy_https_proxy[0].id
+  integration_type       = "HTTP_PROXY"
+  integration_method     = "ANY"
+  integration_uri        = local.backend_origin
+  request_parameters     = { "overwrite:path" = "/$request.path.proxy" }
+  payload_format_version = "1.0"
+}
+
+resource "aws_apigatewayv2_integration" "bitebuddy_proxy_root" {
+  count                  = var.enable_https_tunnel ? 1 : 0
+  api_id                 = aws_apigatewayv2_api.bitebuddy_https_proxy[0].id
+  integration_type       = "HTTP_PROXY"
+  integration_method     = "ANY"
+  integration_uri        = local.backend_origin
+  request_parameters     = { "overwrite:path" = "/" }
+  payload_format_version = "1.0"
+}
+
+resource "aws_apigatewayv2_route" "bitebuddy_proxy_path" {
+  for_each  = var.enable_https_tunnel ? local.api_methods : toset([])
+  api_id    = aws_apigatewayv2_api.bitebuddy_https_proxy[0].id
+  route_key = "${each.value} /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.bitebuddy_proxy_path[0].id}"
+}
+
+resource "aws_apigatewayv2_route" "bitebuddy_proxy_root" {
+  for_each  = var.enable_https_tunnel ? toset(["GET", "HEAD"]) : toset([])
+  api_id    = aws_apigatewayv2_api.bitebuddy_https_proxy[0].id
+  route_key = "${each.value} /"
+  target    = "integrations/${aws_apigatewayv2_integration.bitebuddy_proxy_root[0].id}"
+}
+
+resource "aws_apigatewayv2_stage" "bitebuddy_proxy_default" {
+  count       = var.enable_https_tunnel ? 1 : 0
+  api_id      = aws_apigatewayv2_api.bitebuddy_https_proxy[0].id
+  name        = "$default"
+  auto_deploy = true
 }

@@ -1,0 +1,43 @@
+name: Sync Vercel API URL
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+  push:
+    paths:
+      - "infra/terraform/*.tf"
+      - "infra/scripts/sync_vercel_api_url.py"
+      - ".github/workflows/sync-vercel-api-url.yml"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync Vercel Environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_TARGETS: production,preview
+          VERCEL_ENV_KEY: VITE_API_BASE_URL
+          VERCEL_ENV_TYPE: encrypted
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_APIGW_API_NAME: bitebuddy-https-proxy
+          VERCEL_DEPLOY_HOOK_URLS: ${{ secrets.VERCEL_DEPLOY_HOOK_URLS }}
+        run: python infra/scripts/sync_vercel_api_url.py
