@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { History, Lock } from "lucide-react";
+import { Eye, EyeOff, History, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header, { type HeaderView } from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
@@ -89,6 +89,7 @@ const Index = () => {
   const [authUsername, setAuthUsername] = useState("");
   const [authEmailOrUsername, setAuthEmailOrUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -646,13 +647,24 @@ const Index = () => {
             </div>
             <div className="space-y-1">
               <Label htmlFor="auth-password">Password</Label>
-              <Input
-                id="auth-password"
-                type="password"
-                value={authPassword}
-                onChange={(event) => setAuthPassword(event.target.value)}
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <Input
+                  id="auth-password"
+                  type={showAuthPassword ? "text" : "password"}
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  placeholder="••••••••"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                  aria-label={showAuthPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowAuthPassword((current) => !current)}
+                >
+                  {showAuthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {authError ? <p className="text-xs text-destructive">{authError}</p> : null}
             <Button
