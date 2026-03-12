@@ -176,7 +176,7 @@ class UserStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT u.user_id, u.username, u.email, s.expires_at
+                SELECT u.user_id, u.username, u.email, u.email_verified, s.expires_at
                 FROM sessions s
                 JOIN users u ON u.user_id = s.user_id
                 WHERE s.token_hash = ?
