@@ -20,6 +20,23 @@ from app.services.session_store import InMemorySessionStore
 
 
 BASE_DIR = Path(__file__).resolve().parents[3]
+APP_DIR = Path(__file__).resolve().parents[2]
+
+
+def _first_existing_path(candidates: list[Path]) -> Path | None:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _recipe_data_candidates(file_name: str) -> list[Path]:
+    return [
+        APP_DIR / 'data' / 'processed' / file_name,
+        BASE_DIR / 'backend' / 'data' / 'processed' / file_name,
+        Path('/backend/data/processed') / file_name,
+        Path('/app/data/processed') / file_name,
+    ]
 
 
 @lru_cache
@@ -34,7 +51,15 @@ def get_indexed_recipe_repository() -> IndexedRecipeRepository | None:
         return None
     index_path = Path(settings.recipe_search_index_path)
     if not index_path.is_absolute():
-        index_path = BASE_DIR / index_path
+        resolved = _first_existing_path(
+            [
+                APP_DIR / index_path,
+                BASE_DIR / index_path,
+                APP_DIR / 'data' / 'processed' / index_path.name,
+                Path('/app/data/processed') / index_path.name,
+            ]
+        )
+        index_path = resolved or (APP_DIR / index_path)
     repository = IndexedRecipeRepository(index_path)
     if not repository.is_available():
         return None
@@ -56,9 +81,11 @@ def get_recipe_repository():
     if indexed_repository is not None:
         return indexed_repository
 
-    data_path = BASE_DIR / 'backend' / 'data' / 'processed' / 'recipes.jsonl'
-    if not data_path.exists():
-        data_path = BASE_DIR / 'backend' / 'data' / 'processed' / 'sample_recipes.jsonl'
+    data_path = _first_existing_path(_recipe_data_candidates('recipes.jsonl'))
+    if data_path is None:
+        data_path = _first_existing_path(_recipe_data_candidates('sample_recipes.jsonl'))
+    if data_path is None:
+        data_path = APP_DIR / 'data' / 'processed' / 'sample_recipes.jsonl'
     return RecipeRepository(data_path)
 
 
@@ -118,7 +145,15 @@ def get_user_store() -> UserStore:
         return PostgresUserStore(settings.postgres_auth_dsn)
     db_path = Path(settings.auth_db_path)
     if not db_path.is_absolute():
-        db_path = BASE_DIR / db_path
+        resolved = _first_existing_path(
+            [
+                APP_DIR / db_path,
+                BASE_DIR / db_path,
+                APP_DIR / 'data' / 'processed' / db_path.name,
+                Path('/app/data/processed') / db_path.name,
+            ]
+        )
+        db_path = resolved or (APP_DIR / db_path)
     return UserStore(db_path)
 
 

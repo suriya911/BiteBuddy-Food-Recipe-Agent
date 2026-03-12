@@ -99,22 +99,35 @@ def _upsert_vercel_env(
     env_type: str,
     target: str,
 ) -> None:
-    query = {"upsert": "true"}
-    if team_id:
-        query["teamId"] = team_id
-    qs = parse.urlencode(query)
-    endpoint = f"https://api.vercel.com/v10/projects/{project_id}/env?{qs}"
     payload = {
         "key": key,
         "value": value,
         "type": env_type,
         "target": [target],
     }
-    try:
-        _vercel_request(token=token, method="POST", url=endpoint, body=payload)
-    except error.HTTPError as exc:
-        details = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Vercel API failed for target={target}: {details}") from exc
+    attempts: list[tuple[str, str]] = []
+
+    def _build_endpoint(include_team: bool) -> str:
+        query = {"upsert": "true"}
+        if include_team and team_id:
+            query["teamId"] = team_id
+        return f"https://api.vercel.com/v10/projects/{project_id}/env?{parse.urlencode(query)}"
+
+    endpoints = [_build_endpoint(include_team=True)] if team_id else []
+    endpoints.append(_build_endpoint(include_team=False))
+
+    for endpoint in endpoints:
+        try:
+            _vercel_request(token=token, method="POST", url=endpoint, body=payload)
+            return
+        except error.HTTPError as exc:
+            details = exc.read().decode("utf-8", errors="replace")
+            attempts.append((endpoint, details))
+        except Exception as exc:  # noqa: BLE001
+            attempts.append((endpoint, str(exc)))
+
+    joined = " | ".join([f"{url} -> {msg}" for url, msg in attempts])
+    raise RuntimeError(f"Vercel API failed for target={target}. Attempts: {joined}")
 
 
 def _trigger_deploy_hooks(urls: list[str]) -> None:

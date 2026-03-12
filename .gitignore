@@ -62,6 +62,7 @@ backend/data/raw/*
 backend/data/processed/*
 !backend/data/raw/.gitkeep
 !backend/data/processed/.gitkeep
+!backend/data/processed/sample_recipes.jsonl
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

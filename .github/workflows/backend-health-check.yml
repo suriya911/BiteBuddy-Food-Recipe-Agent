@@ -1,0 +1,50 @@
+name: Backend Health Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Resolve API Gateway URL
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGION="${AWS_REGION:-us-east-1}"
+          API_NAME="${AWS_APIGW_API_NAME:-bitebuddy-https-proxy}"
+          API_ENDPOINT="$(aws apigatewayv2 get-apis --region "$REGION" --query "Items[?Name=='$API_NAME'].ApiEndpoint | [0]" --output text)"
+          if [ -z "$API_ENDPOINT" ] || [ "$API_ENDPOINT" = "None" ]; then
+            echo "Could not resolve API endpoint for name=$API_NAME"
+            exit 1
+          fi
+          echo "endpoint=$API_ENDPOINT" >> "$GITHUB_OUTPUT"
+
+      - name: Check /api/health
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${{ steps.resolve.outputs.endpoint }}/api/health"
+          echo "Checking $URL"
+          for i in 1 2 3 4 5; do
+            if curl --fail --show-error --silent --max-time 15 "$URL" | grep -q '"status":"ok"'; then
+              echo "Backend health check passed."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Backend health check failed."
+          exit 1
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_APIGW_API_NAME: bitebuddy-https-proxy
