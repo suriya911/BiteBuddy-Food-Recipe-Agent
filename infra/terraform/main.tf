@@ -77,6 +77,42 @@ resource "aws_security_group" "bitebuddy_backend_sg" {
   }
 }
 
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "bitebuddy_ssm_role" {
+  name               = "${var.project_name}-ssm-role"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+
+  tags = {
+    Name    = "${var.project_name}-ssm-role"
+    Project = var.project_name
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "bitebuddy_ssm_core" {
+  role       = aws_iam_role.bitebuddy_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "bitebuddy_ssm_profile" {
+  name = "${var.project_name}-ssm-profile"
+  role = aws_iam_role.bitebuddy_ssm_role.name
+
+  tags = {
+    Name    = "${var.project_name}-ssm-profile"
+    Project = var.project_name
+  }
+}
+
 locals {
   env_lines      = join("\n", [for k, v in var.backend_env : "${k}=${v}"])
   backend_host   = var.allocate_eip ? aws_eip.bitebuddy_backend[0].public_ip : aws_instance.bitebuddy_backend.public_ip
@@ -88,6 +124,7 @@ resource "aws_instance" "bitebuddy_backend" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   key_name                    = var.key_pair_name
+  iam_instance_profile        = aws_iam_instance_profile.bitebuddy_ssm_profile.name
   vpc_security_group_ids      = [aws_security_group.bitebuddy_backend_sg.id]
   associate_public_ip_address = true
 

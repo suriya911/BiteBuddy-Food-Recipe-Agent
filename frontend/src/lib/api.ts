@@ -471,6 +471,7 @@ async function extractError(response: Response, fallback: string): Promise<strin
 
 function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
   const ingredients = normalizeIngredients(input.ingredients);
+  const instructions = normalizeIngredients(input.instructions);
   return {
     id: String(input.id ?? input.recipe_id ?? ""),
     title: String(input.title ?? "Recipe"),
@@ -483,7 +484,7 @@ function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
     tags: Array.isArray(input.tags) ? (input.tags as string[]) : [],
     calories: (input.calories as number | null | undefined) ?? null,
     ingredients,
-    instructions: Array.isArray(input.instructions) ? (input.instructions as string[]) : [],
+    instructions,
     conflicts: Array.isArray(input.conflicts) ? (input.conflicts as string[]) : [],
     substitutions: Array.isArray(input.substitutions)
       ? (input.substitutions as { original: string; replacement: string }[])
@@ -496,7 +497,10 @@ function normalizeRecipeRecord(input: Record<string, unknown>): RecipeCardData {
 
 function normalizeIngredients(raw: unknown): string[] {
   if (Array.isArray(raw)) {
-    return raw.map((item) => String(item).trim()).filter(Boolean);
+    return raw
+      .flatMap((item) => normalizeIngredients(String(item)))
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
   if (typeof raw === "string" && raw.startsWith("c(")) {
     return raw
@@ -507,9 +511,14 @@ function normalizeIngredients(raw: unknown): string[] {
       .filter(Boolean);
   }
   if (typeof raw === "string") {
-    return raw
+    const cleaned = raw
+      .replace(/^\[+/, "")
+      .replace(/\]+$/, "")
+      .replace(/^"+|"+$/g, "")
+      .replace(/^'+|'+$/g, "");
+    return cleaned
       .split(",")
-      .map((item) => item.trim())
+      .map((item) => item.trim().replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, ""))
       .filter(Boolean);
   }
   return [];

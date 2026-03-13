@@ -5,6 +5,12 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+env:
+  AWS_APIGW_API_NAME: bitebuddy-https-proxy
+  EC2_PROJECT_TAG: bitebuddy
+  EC2_NAME_TAG: bitebuddy-ec2
+  BACKEND_IMAGE: suriya17/bitebuddy-backend:latest
+
 jobs:
   health:
     runs-on: ubuntu-latest
@@ -17,34 +23,130 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Resolve API Gateway URL
-        id: resolve
+        id: resolve_api
         shell: bash
         run: |
           set -euo pipefail
           REGION="${AWS_REGION:-us-east-1}"
-          API_NAME="${AWS_APIGW_API_NAME:-bitebuddy-https-proxy}"
-          API_ENDPOINT="$(aws apigatewayv2 get-apis --region "$REGION" --query "Items[?Name=='$API_NAME'].ApiEndpoint | [0]" --output text)"
+          API_ENDPOINT="$(aws apigatewayv2 get-apis --region "$REGION" --query "Items[?Name=='$AWS_APIGW_API_NAME'].ApiEndpoint | [0]" --output text)"
           if [ -z "$API_ENDPOINT" ] || [ "$API_ENDPOINT" = "None" ]; then
-            echo "Could not resolve API endpoint for name=$API_NAME"
+            echo "Could not resolve API endpoint for name=$AWS_APIGW_API_NAME"
             exit 1
           fi
           echo "endpoint=$API_ENDPOINT" >> "$GITHUB_OUTPUT"
 
-      - name: Check /api/health
+      - name: Resolve EC2 Instance
+        id: resolve_instance
         shell: bash
         run: |
           set -euo pipefail
-          URL="${{ steps.resolve.outputs.endpoint }}/api/health"
+          REGION="${AWS_REGION:-us-east-1}"
+          INSTANCE_ID="$(aws ec2 describe-instances \
+            --region "$REGION" \
+            --filters \
+              "Name=tag:Project,Values=$EC2_PROJECT_TAG" \
+              "Name=tag:Name,Values=$EC2_NAME_TAG" \
+              "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)"
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+            echo "Could not resolve running EC2 instance."
+            exit 1
+          fi
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Check /api/health
+        id: initial_health
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          URL="${{ steps.resolve_api.outputs.endpoint }}/api/health"
           echo "Checking $URL"
-          for i in 1 2 3 4 5; do
-            if curl --fail --show-error --silent --max-time 15 "$URL" | grep -q '"status":"ok"'; then
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl --fail --show-error --silent --max-time 20 "$URL" | grep -q '"status":"ok"'; then
               echo "Backend health check passed."
               exit 0
             fi
-            sleep 5
+            sleep 15
           done
           echo "Backend health check failed."
           exit 1
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_APIGW_API_NAME: bitebuddy-https-proxy
+
+      - name: Restart Backend Container
+        if: steps.initial_health.outcome == 'failure'
+        id: restart_container
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGION="${AWS_REGION:-us-east-1}"
+          INSTANCE_ID="${{ steps.resolve_instance.outputs.instance_id }}"
+          COMMAND_ID="$(aws ssm send-command \
+            --region "$REGION" \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Restart BiteBuddy backend container" \
+            --parameters commands='[
+              "set -euo pipefail",
+              "sudo systemctl start docker",
+              "sudo docker pull '"$BACKEND_IMAGE"'",
+              "sudo docker rm -f bitebuddy-backend || true",
+              "sudo docker run -d --name bitebuddy-backend --restart unless-stopped --env-file /opt/bitebuddy/backend.env -p 8000:8000 '"$BACKEND_IMAGE"'",
+              "sleep 5",
+              "curl --fail --show-error --silent http://127.0.0.1:8000/api/health"
+            ]' \
+            --query "Command.CommandId" \
+            --output text)"
+          aws ssm wait command-executed --region "$REGION" --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+          STATUS="$(aws ssm get-command-invocation --region "$REGION" --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query "Status" --output text)"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          if [ "$STATUS" != "Success" ]; then
+            aws ssm get-command-invocation --region "$REGION" --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query "StandardErrorContent" --output text
+            exit 1
+          fi
+
+      - name: Recheck /api/health
+        if: steps.initial_health.outcome == 'failure'
+        id: post_restart_health
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          URL="${{ steps.resolve_api.outputs.endpoint }}/api/health"
+          echo "Rechecking $URL after container restart"
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl --fail --show-error --silent --max-time 20 "$URL" | grep -q '"status":"ok"'; then
+              echo "Backend recovered after container restart."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Backend is still unhealthy after container restart."
+          exit 1
+
+      - name: Reboot EC2 Instance
+        if: steps.initial_health.outcome == 'failure' && steps.post_restart_health.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGION="${AWS_REGION:-us-east-1}"
+          INSTANCE_ID="${{ steps.resolve_instance.outputs.instance_id }}"
+          aws ec2 reboot-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
+          sleep 90
+
+      - name: Final Health Check
+        if: steps.initial_health.outcome == 'failure' && steps.post_restart_health.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${{ steps.resolve_api.outputs.endpoint }}/api/health"
+          echo "Final check for $URL after EC2 reboot"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if curl --fail --show-error --silent --max-time 20 "$URL" | grep -q '"status":"ok"'; then
+              echo "Backend recovered after EC2 reboot."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Backend health check failed after all recovery attempts."
+          exit 1

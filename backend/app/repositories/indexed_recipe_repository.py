@@ -4,6 +4,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from app.schemas import AgentInput, RecipeRecord
 
@@ -318,6 +319,10 @@ class IndexedRecipeRepository:
         return math.log1p(max(value, 0))
 
     def _row_to_recipe(self, row: sqlite3.Row) -> RecipeRecord:
+        ingredients = _decode_list_field(row['ingredients_json'])
+        instructions = _decode_list_field(row['instructions_json'])
+        tags = _decode_list_field(row['tags_json'])
+        cuisines = _decode_list_field(row['cuisines_json'])
         return RecipeRecord(
             recipe_id=row['recipe_id'],
             source=row['source'],
@@ -325,15 +330,15 @@ class IndexedRecipeRepository:
             title=row['title'],
             description=row['description'],
             cuisine=row['cuisine'],
-            cuisines=json.loads(row['cuisines_json'] or '[]'),
+            cuisines=cuisines,
             diet=row['diet'],
             total_time_minutes=row['total_time_minutes'],
             prep_time_minutes=row['prep_time_minutes'],
             cook_time_minutes=row['cook_time_minutes'],
             servings=row['servings'],
-            ingredients=json.loads(row['ingredients_json'] or '[]'),
-            instructions=json.loads(row['instructions_json'] or '[]'),
-            tags=json.loads(row['tags_json'] or '[]'),
+            ingredients=ingredients,
+            instructions=instructions,
+            tags=tags,
             rating=row['rating'],
             image_url=row['image_url'],
             source_url=row['source_url'],
@@ -343,3 +348,32 @@ class IndexedRecipeRepository:
         if self._total_recipes is None:
             self._total_recipes = int(conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0])
         return self._total_recipes
+
+
+def _decode_list_field(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = []
+    if not isinstance(parsed, list):
+        return []
+    return _normalize_dirty_list(parsed)
+
+
+def _normalize_dirty_list(values: list[object]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        if text.startswith('c("') or text == 'c(':
+            text = text[2:].strip()
+        text = text.strip()
+        text = re.sub(r'^[\(\[]+', '', text)
+        text = re.sub(r'[\)\]]+$', '', text)
+        text = text.strip().strip('"').strip("'").strip()
+        if text:
+            normalized.append(text)
+    return normalized
