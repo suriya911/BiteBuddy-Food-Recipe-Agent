@@ -75,7 +75,7 @@ jobs:
           INSTANCE_ID="${{ steps.resolve_instance.outputs.instance_id }}"
           REMOTE_COMMANDS=$(cat <<EOF
           [
-            "set -euo pipefail",
+            "set -eu",
             "sudo systemctl start docker",
             "sudo docker pull ${IMAGE_NAME}:latest",
             "sudo docker rm -f bitebuddy-backend || true",
