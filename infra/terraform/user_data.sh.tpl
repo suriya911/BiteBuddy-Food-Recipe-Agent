@@ -35,3 +35,6 @@ docker run -d \
   --env-file /opt/bitebuddy/backend.env \
   -p ${backend_port}:8000 \
   ${app_image}
+
+sleep 5
+docker exec bitebuddy-backend python scripts/seed_demo_users.py

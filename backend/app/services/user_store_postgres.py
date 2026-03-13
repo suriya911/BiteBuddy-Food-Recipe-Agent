@@ -339,6 +339,23 @@ class PostgresUserStore:
             "saved_at": saved_at.isoformat(),
         }
 
+    def update_user_credentials(self, *, user_id: int, username: str, password: str) -> None:
+        normalized_username = username.strip()
+        username_lc = normalized_username.lower()
+        salt = secrets.token_hex(16)
+        password_hash = self._hash_password(password=password, salt=salt)
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET username = %s, username_lc = %s, password_hash = %s, salt = %s, email_verified = TRUE
+                    WHERE user_id = %s
+                    """,
+                    (normalized_username, username_lc, password_hash, salt, user_id),
+                )
+            conn.commit()
+
     def remove_favorite(self, *, user_id: int, recipe_id: str) -> None:
         with self._connect() as conn:
             with conn.cursor() as cur:

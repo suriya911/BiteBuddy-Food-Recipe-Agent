@@ -93,6 +93,7 @@ jobs:
               "sudo docker rm -f bitebuddy-backend || true",
               "sudo docker run -d --name bitebuddy-backend --restart unless-stopped --env-file /opt/bitebuddy/backend.env -p 8000:8000 '"$BACKEND_IMAGE"'",
               "sleep 5",
+              "sudo docker exec bitebuddy-backend python scripts/seed_demo_users.py",
               "curl --fail --show-error --silent http://127.0.0.1:8000/api/health"
             ]' \
             --query "Command.CommandId" \

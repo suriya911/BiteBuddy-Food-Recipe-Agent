@@ -31,7 +31,8 @@ def _ensure_user(store, *, username: str, email: str, password: str) -> None:
         store.mark_user_verified(user.user_id)
         print(f"Created user: {username} ({email})")
         return
-    print(f"User exists: {existing.username} ({existing.email})")
+    store.update_user_credentials(user_id=existing.user_id, username=username, password=password)
+    print(f"Updated user: {username} ({email})")
 
 
 def main() -> None:

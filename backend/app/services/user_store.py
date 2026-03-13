@@ -371,6 +371,21 @@ class UserStore:
         with self._connect() as conn:
             conn.execute("UPDATE users SET email_verified = 1 WHERE user_id = ?", (user_id,))
 
+    def update_user_credentials(self, *, user_id: int, username: str, password: str) -> None:
+        normalized_username = username.strip()
+        username_lc = normalized_username.lower()
+        salt = secrets.token_hex(16)
+        password_hash = self._hash_password(password=password, salt=salt)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET username = ?, username_lc = ?, password_hash = ?, salt = ?, email_verified = 1
+                WHERE user_id = ?
+                """,
+                (normalized_username, username_lc, password_hash, salt, user_id),
+            )
+
     def _hash_password(self, *, password: str, salt: str) -> str:
         key = hashlib.pbkdf2_hmac(
             "sha256",
