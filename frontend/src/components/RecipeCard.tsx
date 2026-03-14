@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Clock, Users, Flame, Sparkles, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { RecipeCardData } from "@/lib/api";
@@ -11,6 +12,14 @@ interface RecipeCardProps {
 }
 
 const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: RecipeCardProps) => {
+  const [imageSrc, setImageSrc] = useState(recipe.image || fallbackImage);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageSrc(recipe.image || fallbackImage);
+    setImageFailed(false);
+  }, [recipe.id, recipe.image, recipe.title]);
+
   return (
     <div
       role="button"
@@ -24,13 +33,29 @@ const RecipeCard = ({ recipe, onClick, isFavorite = false, onToggleFavorite }: R
       }}
       className="group w-full text-left bg-card rounded-2xl border border-border overflow-hidden shadow-card hover:shadow-warm transition-all duration-300 hover:-translate-y-1 cursor-pointer"
     >
-      <div className="relative h-44 sm:h-48 overflow-hidden">
-        <img
-          src={recipe.image || fallbackImage}
-          alt={recipe.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-        />
+      <div className="relative h-44 sm:h-48 overflow-hidden bg-muted">
+        {imageFailed ? (
+          <div
+            className="w-full h-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${fallbackImage})` }}
+            aria-label={recipe.title}
+            role="img"
+          />
+        ) : (
+          <img
+            src={imageSrc}
+            alt={recipe.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            loading="lazy"
+            onError={() => {
+              if (imageSrc === fallbackImage) {
+                setImageFailed(true);
+                return;
+              }
+              setImageSrc(fallbackImage);
+            }}
+          />
+        )}
         <div className="absolute top-3 left-3">
           <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm text-xs font-medium">
             {recipe.cuisine}
