@@ -9,17 +9,50 @@ from pathlib import Path
 import pandas as pd
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent
+APP_DIR = BACKEND_DIR
+
+
+def first_existing_path(candidates: list[Path]) -> Path | None:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def default_recipes_csv() -> Path:
+    candidates = [
+        BACKEND_DIR / "data" / "raw" / "shuyangli94__food-com-recipes-and-user-interactions" / "recipes.csv",
+        BACKEND_DIR / "data" / "raw" / "shuyangli94__food-com-recipes-and-user-interactions" / "RAW_recipes.csv",
+        APP_DIR / "data" / "raw" / "shuyangli94__food-com-recipes-and-user-interactions" / "recipes.csv",
+        APP_DIR / "data" / "raw" / "shuyangli94__food-com-recipes-and-user-interactions" / "RAW_recipes.csv",
+        Path("/app/data/raw/shuyangli94__food-com-recipes-and-user-interactions/recipes.csv"),
+        Path("/app/data/raw/shuyangli94__food-com-recipes-and-user-interactions/RAW_recipes.csv"),
+    ]
+    return first_existing_path(candidates) or candidates[0]
+
+
+def default_output_db() -> Path:
+    candidates = [
+        BACKEND_DIR / "data" / "processed" / "recipe_details.sqlite",
+        APP_DIR / "data" / "processed" / "recipe_details.sqlite",
+        Path("/app/data/processed/recipe_details.sqlite"),
+    ]
+    return first_existing_path(candidates) or candidates[0]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a recipe details cache for fast lookup.")
     parser.add_argument(
         "--recipes-csv",
         type=Path,
-        default=Path("backend/data/raw/shuyangli94__food-com-recipes-and-user-interactions/recipes.csv"),
+        default=default_recipes_csv(),
     )
     parser.add_argument(
         "--output-db",
         type=Path,
-        default=Path("backend/data/processed/recipe_details.sqlite"),
+        default=default_output_db(),
     )
     return parser.parse_args()
 
