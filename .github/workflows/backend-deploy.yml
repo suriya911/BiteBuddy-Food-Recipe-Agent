@@ -41,6 +41,7 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Configure AWS Credentials
+        if: github.event_name == 'workflow_dispatch'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -48,6 +49,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Resolve EC2 Instance
+        if: github.event_name == 'workflow_dispatch'
         id: resolve_instance
         shell: bash
         run: |
@@ -68,6 +70,7 @@ jobs:
           echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Restart Backend on EC2
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
@@ -113,6 +116,7 @@ jobs:
           fi
 
       - name: Resolve API Gateway URL
+        if: github.event_name == 'workflow_dispatch'
         id: resolve_api
         shell: bash
         run: |
@@ -126,6 +130,7 @@ jobs:
           echo "endpoint=$API_ENDPOINT" >> "$GITHUB_OUTPUT"
 
       - name: Verify Public Health
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
@@ -139,3 +144,11 @@ jobs:
           done
           echo "Backend deploy verification failed."
           exit 1
+
+      - name: Build Only Summary
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          echo "Backend image built and pushed."
+          echo "EC2 restart skipped on push."
+          echo "Use workflow_dispatch for manual deploy, or rely on Backend Health Check for recovery."
