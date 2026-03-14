@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -26,13 +27,23 @@ interface RecipeDrawerProps {
 
 const RecipeDrawer = ({ recipe, open, onClose, isFavorite = false, onToggleFavorite }: RecipeDrawerProps) => {
   if (!recipe) return null;
+  const [imageSrc, setImageSrc] = useState(recipe.image || fallbackImage);
+
+  useEffect(() => {
+    setImageSrc(recipe.image || fallbackImage);
+  }, [recipe.id, recipe.image, recipe.title]);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-lg bg-background p-0">
         <ScrollArea className="h-full">
           <div className="relative h-56 overflow-hidden">
-            <img src={recipe.image || fallbackImage} alt={recipe.title} className="w-full h-full object-cover" />
+            <img
+              src={imageSrc}
+              alt={recipe.title}
+              className="w-full h-full object-cover"
+              onError={() => setImageSrc(fallbackImage)}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           </div>
 
