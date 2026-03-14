@@ -13,3 +13,6 @@ data/raw/
 data/processed/*.jsonl
 !data/processed/sample_recipes.jsonl
 data/processed/test_*.jsonl
+!data/raw/shuyangli94__food-com-recipes-and-user-interactions/
+data/raw/shuyangli94__food-com-recipes-and-user-interactions/*
+!data/raw/shuyangli94__food-com-recipes-and-user-interactions/recipes.csv
