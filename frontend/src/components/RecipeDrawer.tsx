@@ -28,22 +28,39 @@ interface RecipeDrawerProps {
 const RecipeDrawer = ({ recipe, open, onClose, isFavorite = false, onToggleFavorite }: RecipeDrawerProps) => {
   if (!recipe) return null;
   const [imageSrc, setImageSrc] = useState(recipe.image || fallbackImage);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     setImageSrc(recipe.image || fallbackImage);
+    setImageFailed(false);
   }, [recipe.id, recipe.image, recipe.title]);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-lg bg-background p-0">
         <ScrollArea className="h-full">
-          <div className="relative h-56 overflow-hidden">
-            <img
-              src={imageSrc}
-              alt={recipe.title}
-              className="w-full h-full object-cover"
-              onError={() => setImageSrc(fallbackImage)}
-            />
+          <div className="relative h-56 overflow-hidden bg-muted">
+            {imageFailed ? (
+              <div
+                className="w-full h-full bg-cover bg-center"
+                style={{ backgroundImage: `url(${fallbackImage})` }}
+                aria-label={recipe.title}
+                role="img"
+              />
+            ) : (
+              <img
+                src={imageSrc}
+                alt={recipe.title}
+                className="w-full h-full object-cover"
+                onError={() => {
+                  if (imageSrc === fallbackImage) {
+                    setImageFailed(true);
+                    return;
+                  }
+                  setImageSrc(fallbackImage);
+                }}
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           </div>
 

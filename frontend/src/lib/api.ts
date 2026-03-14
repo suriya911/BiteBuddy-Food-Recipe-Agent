@@ -507,19 +507,31 @@ function normalizeIngredients(raw: unknown): string[] {
       .replace(/^c\(/, "")
       .replace(/\)$/, "")
       .split(",")
-      .map((item) => item.replace(/"/g, "").trim())
+      .map(cleanRecipeToken)
       .filter(Boolean);
   }
   if (typeof raw === "string") {
-    const cleaned = raw
-      .replace(/^\[+/, "")
-      .replace(/\]+$/, "")
-      .replace(/^"+|"+$/g, "")
-      .replace(/^'+|'+$/g, "");
+    const cleaned = cleanRecipeToken(
+      raw
+        .replace(/^\[+/, "")
+        .replace(/\]+$/, ""),
+    );
     return cleaned
       .split(",")
-      .map((item) => item.trim().replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, ""))
+      .map(cleanRecipeToken)
       .filter(Boolean);
   }
   return [];
+}
+
+function cleanRecipeToken(value: string): string {
+  return value
+    .trim()
+    .replace(/^c\(/, "")
+    .replace(/\)$/, "")
+    .replace(/^"+|"+$/g, "")
+    .replace(/^'+|'+$/g, "")
+    .replace(/^"+|"+$/g, "")
+    .replace(/^'+|'+$/g, "")
+    .trim();
 }
