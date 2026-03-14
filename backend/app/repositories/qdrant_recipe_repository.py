@@ -7,6 +7,7 @@ import pandas as pd
 import sqlite3
 import json
 from pathlib import Path
+import re
 
 from qdrant_client import QdrantClient
 
@@ -63,10 +64,10 @@ class QdrantRecipeRepository:
                 servings=None,
                 ingredients=normalize_list(payload.get("ingredients")) or [],
                 instructions=normalize_list(payload.get("instructions")) or [],
-                tags=[],
+                tags=normalize_list(payload.get("tags")) or [],
                 rating=None,
-                image_url=None,
-                source_url=None,
+                image_url=payload.get("image_url"),
+                source_url=payload.get("source_url"),
             )
             if (not base.instructions or not base.ingredients) and self.recipes_csv_path:
                 enriched = self._load_from_csv(int(base.recipe_id))
@@ -99,6 +100,7 @@ class QdrantRecipeRepository:
                 "RecipeCategory",
                 "Keywords",
                 "RecipeYield",
+                "Images",
             ],
             chunksize=5000,
         ):
@@ -127,7 +129,7 @@ class QdrantRecipeRepository:
                 instructions=instructions,
                 tags=tags,
                 rating=None,
-                image_url=None,
+                image_url=first_image(row.get("Images")),
                 source_url=None,
             )
             self._recipe_cache[recipe_id] = record
@@ -145,7 +147,7 @@ class QdrantRecipeRepository:
             row = conn.execute(
                 """
                 SELECT recipe_id, title, description, total_time_minutes, ingredients_json,
-                       instructions_json, tags_json, category, recipe_yield
+                       instructions_json, tags_json, category, recipe_yield, image_url
                 FROM recipe_details
                 WHERE recipe_id = ?
                 """,
@@ -173,7 +175,7 @@ class QdrantRecipeRepository:
             instructions=instructions,
             tags=tags,
             rating=None,
-            image_url=None,
+            image_url=str(row["image_url"] or "") or None,
             source_url=None,
         )
         return record
@@ -183,31 +185,31 @@ def normalize_list(raw: object) -> list[str]:
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return []
     if isinstance(raw, list):
-        return [str(item) for item in raw if str(item).strip()]
+        return _clean_list_items(str(item) for item in raw if str(item).strip())
     if isinstance(raw, str) and raw.startswith("c("):
         return parse_r_c_vector(raw)
     if isinstance(raw, str) and raw.startswith("["):
         try:
             parsed = ast.literal_eval(raw)
             if isinstance(parsed, list):
-                return [str(item) for item in parsed]
+                return _clean_list_items(str(item) for item in parsed)
         except Exception:
             pass
     if isinstance(raw, str):
-        return [token.strip() for token in raw.split(",") if token.strip()]
-    return [str(raw)]
+        return _clean_list_items(token.strip() for token in raw.split(",") if token.strip())
+    return _clean_list_items([str(raw)])
 
 
 def json_to_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
-        return [str(item) for item in value]
+        return _clean_list_items(str(item) for item in value)
     if isinstance(value, str):
         try:
             parsed = ast.literal_eval(value)
             if isinstance(parsed, list):
-                return [str(item) for item in parsed]
+                return _clean_list_items(str(item) for item in parsed)
         except Exception:
             pass
     return []
@@ -232,7 +234,24 @@ def parse_r_c_vector(value: str) -> list[str]:
         current += char
     if current.strip():
         items.append(current.strip())
-    return [item for item in (token.strip() for token in items) if item]
+    return _clean_list_items(token.strip() for token in items if token.strip())
+
+
+def _clean_list_items(values: Iterable[str]) -> list[str]:
+    cleaned: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        text = re.sub(r'^[\(\[]+', '', text)
+        text = re.sub(r'[\)\]]+$', '', text)
+        text = text.strip().strip('"').strip("'").strip()
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def first_image(raw: object) -> str | None:
+    values = normalize_list(raw)
+    return values[0] if values else None
 
 
 def parse_iso_duration_minutes(value: object) -> int | None:

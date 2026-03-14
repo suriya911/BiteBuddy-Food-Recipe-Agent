@@ -40,7 +40,8 @@ def main() -> None:
                 instructions_json TEXT,
                 tags_json TEXT,
                 category TEXT,
-                recipe_yield TEXT
+                recipe_yield TEXT,
+                image_url TEXT
             );
             """
         )
@@ -61,6 +62,7 @@ def insert_rows(conn: sqlite3.Connection, path: Path) -> None:
             "Keywords",
             "RecipeCategory",
             "RecipeYield",
+            "Images",
         ],
         chunksize=5000,
     ):
@@ -82,14 +84,15 @@ def insert_rows(conn: sqlite3.Connection, path: Path) -> None:
                     json.dumps(tags),
                     str(row.get("RecipeCategory") or ""),
                     str(row.get("RecipeYield") or ""),
+                    first_image(row.get("Images")),
                 )
             )
         conn.executemany(
             """
             INSERT INTO recipe_details (
                 recipe_id, title, description, total_time_minutes, ingredients_json,
-                instructions_json, tags_json, category, recipe_yield
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                instructions_json, tags_json, category, recipe_yield, image_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             records,
         )
@@ -113,6 +116,11 @@ def normalize_list(raw: object) -> list[str]:
     if isinstance(raw, str):
         return [token.strip() for token in raw.split(",") if token.strip()]
     return [str(raw)]
+
+
+def first_image(raw: object) -> str | None:
+    values = normalize_list(raw)
+    return values[0] if values else None
 
 
 def parse_r_c_vector(value: str) -> list[str]:
